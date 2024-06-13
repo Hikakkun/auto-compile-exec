@@ -74,9 +74,9 @@ def print_source(file_path: os.path):
     Returns:
     None
     """
-    displau_command = "clang-format"
+    display_command = "clang-format"
     display_command_result: subprocess.CompletedProcess = subprocess.run(
-        [displau_command, file_path], capture_output=True, text=True
+        [display_command, file_path], capture_output=True, text=True
     )
     print_codeblock(display_command_result.stdout, "c")
 

@@ -46,15 +46,13 @@ EXECUTION_TIMEOUT = 2
 ### コード出力
 * print_source関数のsubprocess.run部分を変更することで出力されるコードを変更
     * デフォルト実装では見やすいようにformatをかけている
-    * 何かしらの事情で`clang-format`をインストールできない場合は`displau_command`を`cat`に変更
+    * 何かしらの事情で`clang-format`をインストールできない場合は`display_command`を`cat`に変更
 ```python
 def print_source(file_path: os.path):
-    #displau_command = "clang-format"
+    #display_command = "clang-format"
     #↑を↓に変更
-    displau_command = "cat"
+    display_command = "cat"
     display_command_result: subprocess.CompletedProcess = subprocess.run(
-        [displau_command, file_path], capture_output=True, text=True
+        [display_command, file_path], capture_output=True, text=True
     )
-    print_codeblock(display_command_result.stdout, "c")
-
 ```
