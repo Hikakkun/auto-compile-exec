@@ -19,6 +19,7 @@ class DualOutput:
     Attributes:
     outputs (tuple): 書き込み先の出力ストリームのタプル。
     """
+
     def __init__(self, *outputs):
         """
         DualOutputクラスのコンストラクタ。
@@ -63,7 +64,8 @@ def print_codeblock(code: str, language: str = None, file_name: str = None):
     file_with_language = f"{"" if language is None else language.strip()}{"" if file_name is None else ":"+file_name.strip()}"
     print(f"```{file_with_language}\n{code.strip()}\n```")
 
-#コード出力の部分を変更したい場合この関数を変更
+
+# コード出力の部分を変更したい場合この関数を変更
 def print_source(file_path: os.path):
     """
     指定されたファイルの内容をコードブロックとして出力します。clang-format を使用して整形します。
