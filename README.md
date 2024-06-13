@@ -25,6 +25,7 @@ python3 auto-compile-exec.py [target_dir] [input_dir] [--nooutput]
 ### 使用例
 * repository内のexampleで動作確認可能
     * git clone していればrepository rootで以下を実行可能
+    * `chmod +x auto-compile-exec.py` すると`python *.py`しなくて動く
 1. ソースファイルのみをコンパイルし、結果を表示
     * `./auto-compile-exec.py ./example/no_input/code01/` 
 2. ソースファイルをコンパイルし、指定された入力ファイルを使用して実行
