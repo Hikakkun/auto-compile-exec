@@ -57,9 +57,6 @@ def print_codeblock(code: str, language: str = None, file_name: str = None):
     code (str): 出力するコードの内容。
     language (str, optional): コードの言語。デフォルトは None。
     file_name (str, optional): コードが含まれるファイルの名前。デフォルトは None。
-
-    Returns:
-    None
     """
     strip_language = "" if language is None else language.strip()
     strip_file_name = "" if file_name is None else f":{file_name.strip()}"
@@ -74,9 +71,6 @@ def print_source(file_path: os.path):
 
     Parameters:
     file_path (os.path): ソースファイルのパス。
-
-    Returns:
-    None
     """
     display_command = "clang-format"
     display_command_result: subprocess.CompletedProcess = subprocess.run(
@@ -93,9 +87,6 @@ def execution(executable_file_path: os.path, execution_timeout: int, infile=None
     executable_file_path (os.path): 実行可能ファイルのパス。
     execution_timeout (int): 実行タイムアウトの秒数。
     infile (file object, optional): 標準入力として使用するファイルオブジェクト。デフォルトは None。
-
-    Returns:
-    None
     """
     exe_result: subprocess.CompletedProcess = subprocess.run(
         [executable_file_path],
@@ -121,9 +112,6 @@ def auto_compile_exec(
     compile_timeout (int): コンパイルタイムアウトの秒数。
     execution_timeout (int): 実行タイムアウトの秒数。
     input_dir (os.path, optional): 入力ファイルが含まれるディレクトリのパス。デフォルトは None。
-
-    Returns:
-    None
     """
     # 第一引数の対象ディレクトリの末尾に/があれば削除
     if target_dir.endswith("/"):
@@ -211,15 +199,6 @@ def auto_compile_exec(
 
 
 def main():
-    """
-    スクリプトのエントリーポイント。引数を解析し、自動コンパイルと実行を開始します。
-
-    Parameters:
-    None
-
-    Returns:
-    None
-    """
     parser = argparse.ArgumentParser(
         description="This script will compile all the source code in the folder."
     )
