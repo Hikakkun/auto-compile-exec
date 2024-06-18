@@ -116,77 +116,81 @@ def auto_compile_exec(
     # 第一引数の対象ディレクトリの末尾に/があれば削除
     target_dir = os.path.normpath(target_dir)
     print(f"# {os.path.basename(target_dir)}")
+
+    # 対象ファイルを変えたい場合はこの部分を変更
+    target_file_list = filter(lambda file: file.endswith(".c"), os.listdir(target_dir))
+    
     # ディレクトリ内のファイルに対してループ処理を行う
     before_file_list = set(os.listdir(target_dir))
     print_source_error = False
-    for file in sorted(os.listdir(target_dir)):
-        if file.endswith(".c"):
-            file_path = os.path.join(target_dir, file)
-            filepath_after_compile = file_path[:-2]  # 拡張子を除いたファイル名
-            compile_command = ["gcc", file_path, "-o", filepath_after_compile]
-            print(f"## {os.path.basename(file_path)}")
 
-            print("### source file")
+    # ディレクトリ内のファイルに対してループ処理を行う
+    for file in sorted(target_file_list):
+        file_path = os.path.join(target_dir, file)
+        print(f"## {os.path.basename(file_path)}")
+
+        print("### source file")
+        try:
+            print_source(file_path)
+        except FileNotFoundError:
+            print(traceback.format_exc())
+            print(
+                "There is a problem with the arguments of the subprocess.run function in the print_source function."
+            )
+            print("Please check the following:")
+            print("* Is the command correct?")
+            print("* Is the command path correct?")
+            print_source_error = True
+            break
+        
+        filepath_after_compile, _ = os.path.splitext(file_path)        
+        compile_command = ["gcc", file_path, "-o", filepath_after_compile]
+        try:
+            compile_result = subprocess.run(
+                compile_command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=compile_timeout,
+            )
+            compile_result.check_returncode()
+        except subprocess.CalledProcessError:
+            print("### compile error")
+            print_codeblock(compile_result.stderr, "bash")
+            continue
+        except subprocess.TimeoutExpired:
+            print("### compile timeout")
+            print(f"コンパイルが{compile_timeout}secを超えたため強制終了しました")
+
+        print("### 実行結果")
+        if input_dir is None:
+            # 入力ファイルが無い場合
             try:
-                print_source(file_path)
-            except FileNotFoundError:
-                print(traceback.format_exc())
-                print(
-                    "There is a problem with the arguments of the subprocess.run function in the print_source function."
-                )
-                print("Please check the following:")
-                print("* Is the command correct?")
-                print("* Is the command path correct?")
-                print_source_error = True
-                break
-            try:
-                compile_result = subprocess.run(
-                    compile_command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=compile_timeout,
-                )
-                compile_result.check_returncode()
-            except subprocess.CalledProcessError:
-                print("### compile error")
-                print_codeblock(compile_result.stderr, "bash")
-                continue
+                execution(filepath_after_compile, execution_timeout)
             except subprocess.TimeoutExpired:
-                print("### compile timeout")
-                print(f"コンパイルが{compile_timeout}secを超えたため強制終了しました")
+                print(f"* 実行時間が{execution_timeout}secを超えたため強制終了しました")
+                continue
 
-            print("### 実行結果")
-            if input_dir is None:
-                # 入力ファイルが無い場合
-                try:
-                    execution(filepath_after_compile, execution_timeout)
-                except subprocess.TimeoutExpired:
-                    print(
-                        f"* 実行時間が{execution_timeout}secを超えたため強制終了しました"
-                    )
-                    continue
-
-            else:
-                # 各入力ファイルに対してプログラムを実行
-                input_files = sorted(
-                    [f for f in os.listdir(input_dir) if f.endswith(".txt")]
-                )
-                for input_file in input_files:
-                    input_file_path = os.path.join(input_dir, input_file)
-                    input_file_name = os.path.basename(input_file)
-                    print(f"#### 入力-{input_file_name}")
-                    with open(input_file_path, "r") as infile:
-                        print_codeblock(infile.read(), "txt", input_file_name)
-                    print("#### 出力")
-                    with open(input_file_path, "r") as infile:
-                        try:
-                            execution(filepath_after_compile, execution_timeout, infile)
-                        except subprocess.TimeoutExpired:
-                            print(
-                                f"* 実行時間が{execution_timeout}secを超えたため強制終了しました"
-                            )
-                            break
+        else:
+            # 各入力ファイルに対してプログラムを実行
+            input_files = sorted(
+                [f for f in os.listdir(input_dir) if f.endswith(".txt")]
+            )
+            for input_file in input_files:
+                input_file_path = os.path.join(input_dir, input_file)
+                input_file_name = os.path.basename(input_file)
+                print(f"#### 入力-{input_file_name}")
+                with open(input_file_path, "r") as infile:
+                    print_codeblock(infile.read(), "txt", input_file_name)
+                print("#### 出力")
+                with open(input_file_path, "r") as infile:
+                    try:
+                        execution(filepath_after_compile, execution_timeout, infile)
+                    except subprocess.TimeoutExpired:
+                        print(
+                            f"* 実行時間が{execution_timeout}secを超えたため強制終了しました"
+                        )
+                        break
     after_file_list = set(os.listdir(target_dir))
     print("## 削除ファイル")
     for file in after_file_list.difference(before_file_list):
