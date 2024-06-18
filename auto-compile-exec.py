@@ -61,7 +61,9 @@ def print_codeblock(code: str, language: str = None, file_name: str = None):
     Returns:
     None
     """
-    file_with_language = f"{"" if language is None else language.strip()}{"" if file_name is None else ":"+file_name.strip()}"
+    strip_language = "" if language is None else language.strip()
+    strip_file_name = "" if file_name is None else f":{file_name.strip()}"
+    file_with_language = strip_language+strip_file_name
     print(f"```{file_with_language}\n{code.strip()}\n```")
 
 
