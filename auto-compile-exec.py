@@ -114,8 +114,7 @@ def auto_compile_exec(
     input_dir (os.path, optional): 入力ファイルが含まれるディレクトリのパス。デフォルトは None。
     """
     # 第一引数の対象ディレクトリの末尾に/があれば削除
-    if target_dir.endswith("/"):
-        target_dir = target_dir[:-1]
+    target_dir = os.path.normpath(target_dir)
     print(f"# {os.path.basename(target_dir)}")
     # ディレクトリ内のファイルに対してループ処理を行う
     before_file_list = set(os.listdir(target_dir))
