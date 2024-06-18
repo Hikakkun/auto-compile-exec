@@ -60,7 +60,7 @@ def print_codeblock(code: str, language: str = None, file_name: str = None):
     """
     strip_language = "" if language is None else language.strip()
     strip_file_name = "" if file_name is None else f":{file_name.strip()}"
-    file_with_language = strip_language+strip_file_name
+    file_with_language = strip_language + strip_file_name
     print(f"```{file_with_language}\n{code.strip()}\n```")
 
 
@@ -108,7 +108,7 @@ def auto_compile_exec(
     指定されたディレクトリ内のCソースファイルをコンパイルし、実行結果を出力します。
 
     Parameters:
-    target_dir (os.path): Cソースファイルが含まれるディレクトリのパス。
+    target_dir (os.path): コンパイル対象のソースファイルが含まれるディレクトリのパス。
     compile_timeout (int): コンパイルタイムアウトの秒数。
     execution_timeout (int): 実行タイムアウトの秒数。
     input_dir (os.path, optional): 入力ファイルが含まれるディレクトリのパス。デフォルトは None。
