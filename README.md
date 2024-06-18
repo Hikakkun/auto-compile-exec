@@ -41,11 +41,12 @@ python3 auto-compile-exec.py [target_dir] [input_dir] [--nooutput]
     * EXECUTION_TIMEOUT : プログラム実行時間の制限時間を設定
         * scanfに,が入っている or 無限ループプログラムを弾くため
 ```python
+# 各種タイムアウト時間を設定
 COMPILE_TIMEOTU = 2
 EXECUTION_TIMEOUT = 2
 ```
 ### コード出力
-* print_source関数のsubprocess.run部分を変更することで出力されるコードを変更
+* print_source関数の`subprocess.run`部分を変更することで出力されるコードを変更
     * デフォルト実装では見やすいようにformatをかけている
     * 何かしらの事情で`clang-format`をインストールできない場合は`display_command`を`cat`に変更
 ```python
@@ -56,4 +57,39 @@ def print_source(file_path: os.path):
     display_command_result: subprocess.CompletedProcess = subprocess.run(
         [display_command, file_path], capture_output=True, text=True
     )
+```
+
+### コンパイル対象ファイル
+* auto_compile_exec関数内の`target_file_list = filter()`を変更することでループを回す対象を変更可能
+* `.c`ではなく`.cpp`に変更する場合は以下のように変更
+```python
+def auto_compile_exec(
+    target_dir: os.path,
+    compile_timeout: int,
+    execution_timeout: int,
+    input_dir=None,
+):
+    # 省略
+
+    # 対象ファイルを変えたい場合はこの部分を変更
+    #target_file_list = filter(lambda file: file.endswith(".c"), os.listdir(target_dir))
+    target_file_list = filter(lambda file: file.endswith(".cpp"), os.listdir(target_dir))
+```
+
+### コンパイルコマンド
+* auto_compile_exec関数内の`compile_command = []`を変更することでコンパイル方法を変更可能
+* `gcc`ではなく`g++`に変更する場合は以下のように変更
+```python
+def auto_compile_exec(
+    target_dir: os.path,
+    compile_timeout: int,
+    execution_timeout: int,
+    input_dir=None,
+):
+    # 省略
+
+    filepath_after_compile, _ = os.path.splitext(file_path)
+    # コンパイルコマンドを変更したい場合この部分を修正
+    #compile_command = ["gcc", file_path, "-o", filepath_after_compile]
+    compile_command = ["g++", file_path, "-o", filepath_after_compile]
 ```

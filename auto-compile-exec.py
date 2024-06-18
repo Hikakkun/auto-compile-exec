@@ -5,6 +5,7 @@ import argparse
 import sys
 import traceback
 
+# 各種タイムアウト時間を設定
 COMPILE_TIMEOTU = 2
 EXECUTION_TIMEOUT = 2
 
@@ -119,7 +120,7 @@ def auto_compile_exec(
 
     # 対象ファイルを変えたい場合はこの部分を変更
     target_file_list = filter(lambda file: file.endswith(".c"), os.listdir(target_dir))
-    
+
     # ディレクトリ内のファイルに対してループ処理を行う
     before_file_list = set(os.listdir(target_dir))
     print_source_error = False
@@ -142,8 +143,9 @@ def auto_compile_exec(
             print("* Is the command path correct?")
             print_source_error = True
             break
-        
-        filepath_after_compile, _ = os.path.splitext(file_path)        
+
+        filepath_after_compile, _ = os.path.splitext(file_path)
+        # コンパイルコマンドを変更したい場合この部分を修正
         compile_command = ["gcc", file_path, "-o", filepath_after_compile]
         try:
             compile_result = subprocess.run(
