@@ -112,7 +112,6 @@ def auto_compile_exec(
     compile_timeout: int,
     execution_timeout: int,
     input_dir=None,
-    output=True,
 ):
     """
     指定されたディレクトリ内のCソースファイルをコンパイルし、実行結果を出力します。
@@ -122,7 +121,6 @@ def auto_compile_exec(
     compile_timeout (int): コンパイルタイムアウトの秒数。
     execution_timeout (int): 実行タイムアウトの秒数。
     input_dir (os.path, optional): 入力ファイルが含まれるディレクトリのパス。デフォルトは None。
-    output (bool, optional): コンパイル結果をコマンドラインに出力するかどうか。デフォルトは True。
 
     Returns:
     None
