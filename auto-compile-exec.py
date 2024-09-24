@@ -100,105 +100,6 @@ def execution(executable_file_path: Path, execution_timeout: int, infile = None,
     )
 
 
-def auto_compile_exec(
-    target_dir: Path,
-    compile_timeout: int,
-    execution_timeout: int,
-    input_dir=None,
-):
-    """
-    指定されたディレクトリ内のCソースファイルをコンパイルし、実行結果を出力します。
-
-    Parameters:
-    target_dir (Path): コンパイル対象のソースファイルが含まれるディレクトリのパス。
-    compile_timeout (int): コンパイルタイムアウトの秒数。
-    execution_timeout (int): 実行タイムアウトの秒数。
-    input_dir (Path, optional): 入力ファイルが含まれるディレクトリのパス。デフォルトは None。
-    """
-    # 対象ディレクトリのパスを正規化
-    target_dir = target_dir.resolve()
-    print(f"# {target_dir.name}")
-
-    # 対象ファイルのリストを取得
-    target_file_list = [file for file in target_dir.iterdir() if file.suffix == ".c"]
-
-    # ディレクトリ内のファイルに対してループ処理を行う
-    before_file_list = set(target_dir.iterdir())
-    print_source_error = False
-
-    for file in sorted(target_file_list):
-        print(f"## {file.name}")
-
-        print("### source file")
-        try:
-            print_source(file)
-        except FileNotFoundError:
-            print(traceback.format_exc())
-            print(
-                "There is a problem with the arguments of the subprocess.run function in the print_source function."
-            )
-            print("Please check the following:")
-            print("* Is the command correct?")
-            print("* Is the command path correct?")
-            print_source_error = True
-            break
-
-        filepath_after_compile = file.with_suffix("")
-        # コンパイルコマンドを変更したい場合この部分を修正
-        compile_command = ["gcc", file, "-o", filepath_after_compile]
-        try:
-            compile_result = subprocess.run(
-                compile_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=compile_timeout,
-            )
-            compile_result.check_returncode()
-        except subprocess.CalledProcessError:
-            print("### compile error")
-            print_codeblock(compile_result.stderr, "bash")
-            continue
-        except subprocess.TimeoutExpired:
-            print("### compile timeout")
-            print(f"コンパイルが{compile_timeout}秒を超えたため強制終了しました")
-            continue
-
-        print("### 実行結果")
-        if input_dir is None:
-            # 入力ファイルが無い場合
-            try:
-                execution(filepath_after_compile, execution_timeout)
-            except subprocess.TimeoutExpired:
-                print(f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました")
-                continue
-        else:
-            # 各入力ファイルに対してプログラムを実行
-            input_files = sorted(
-                [f for f in Path(input_dir).iterdir() if f.suffix == ".txt"]
-            )
-            for input_file in input_files:
-                input_file_name = input_file.name
-                print(f"#### 入力-{input_file_name}")
-                with input_file.open("r") as infile:
-                    print_codeblock(infile.read(), "txt", input_file_name)
-                print("#### 出力")
-                with input_file.open("r") as infile:
-                    try:
-                        execution(filepath_after_compile, execution_timeout, infile)
-                    except subprocess.TimeoutExpired:
-                        print(
-                            f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました"
-                        )
-                        break
-    after_file_list = set(target_dir.iterdir())
-    print("## 削除ファイル")
-    for file in after_file_list.difference(before_file_list):
-        file.unlink()
-        print(f"* {file}")
-    if print_source_error:
-        exit(1)
-
 def pair_input_output(directory) -> list[tuple[Path, Path]]:
     # ディレクトリをPathオブジェクトに変換
     dir_path = Path(directory)
@@ -222,10 +123,11 @@ def pair_input_output(directory) -> list[tuple[Path, Path]]:
     
     return pairs
 
-def gcc_compile(target_dir : Path, 
+def auto_compile_exec(target_dir : Path, 
                 compile_timeout: int,
     execution_timeout: int,
-    intput_output_dir : Path):
+    intput_output_dir : Path | None = None,
+    header_dir : Path | None = None):
     c_files = list(target_dir.rglob('*.c'))
     print_source_error = False
     for file in sorted(c_files):
@@ -245,7 +147,11 @@ def gcc_compile(target_dir : Path,
             break            
             
         filepath_after_compile = file.with_suffix("")
-        compile_command = ["gcc", file, "-o", filepath_after_compile]
+        if header_dir is None:
+            compile_command = ["gcc", file, "-o", filepath_after_compile]
+        else:
+            c_files = list(header_dir.glob('*.c'))
+            compile_command = ["gcc", "-I", header_dir, "-o", filepath_after_compile, file, *c_files]
         try:
             compile_result = subprocess.run(
                 compile_command,
@@ -322,25 +228,37 @@ def main():
     parser.add_argument(
         "-io",
         "--input_output",
+        help="Path to the directory containing input and expected output text files.",
         type=Path,
         default=None
     )
 
+    parser.add_argument(
+        "-H",
+        "--header",
+        help="A directory containing pre-prepared c files",
+        type=Path,
+        default=None
+    )
+
+    parser.add_argument(
+        "--nooutput",
+        action="store_true",
+        help="Do not output compilation results to a text file.",
+    )
 
     args = parser.parse_args()
     
     target_dir = Path(args.target_dir)
     input_output_dir = Path(args.input_output) if args.input_output else None
-    
-    gcc_compile(target_dir, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_output_dir)
+    header_dir = Path(args.header) if args.header else None
 
-    return
     if args.nooutput:
         auto_compile_exec(
             target_dir,
             COMPILE_TIMEOUT,
             EXECUTION_TIMEOUT,
-            input_dir,
+            input_output_dir, header_dir
         )
     else:
         dir_name = target_dir.resolve().name
@@ -351,7 +269,10 @@ def main():
             sys.stderr = dual_output
             try:
                 auto_compile_exec(
-                    target_dir, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_dir
+                    target_dir,
+                    COMPILE_TIMEOUT,
+                    EXECUTION_TIMEOUT,
+                    input_output_dir, header_dir
                 )
             finally:
                 sys.stdout = sys.__stdout__
