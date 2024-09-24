@@ -133,6 +133,43 @@ def pair_input_output(directory) -> list[tuple[Path, Path]]:
 
     return pairs
 
+def compile_prepared_c_files(header_dir: Path) -> list[Path]:
+    """
+    事前に用意されたCファイルをコンパイルします。
+
+    Parameters:
+        header_dir (Path): 事前に用意されたCファイルが含まれるディレクトリ。
+
+    Returns:
+        list[Path]: コンパイルされたファイルのパスのリスト。
+
+    Raises:
+        SystemExit: コンパイルに失敗した場合。
+    """
+    if header_dir is None:
+        return []
+    
+    compile_target_files = list(header_dir.glob("*.c"))
+    compiled_files : list[Path] = []
+    for compile_target_file in compile_target_files:
+        compiled_file = compile_target_file.with_suffix("")
+        try:
+            compile_result = subprocess.run(
+                ["gcc", "-c", compile_target_file, "-o", compiled_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            compile_result.check_returncode()
+        except Exception as e:
+            print("# 事前に用意したファイルのエラー")
+            print(f"* `{' '.join(map(str, compile_result.args))}`")
+            print_codeblock(compile_result.stderr, "bash")
+            for compiled in compiled_files:
+                compiled.unlink()
+            exit(1)
+        compiled_files.append(compiled_file)
+    return compiled_files
 
 def auto_compile_exec(
     target_dir: Path,
@@ -155,28 +192,7 @@ def auto_compile_exec(
         header_dir (Path, optional): ヘッダファイルが含まれるディレクトリのパス。デフォルトは None。
     """
     # TAが用意するソースコードを事前コンパイル
-    c_compiled_files :list[Path] = []
-    if header_dir:
-        c_compile_files = list(header_dir.glob("*.c"))
-        for c_file in c_compile_files:
-            c_compiled_file = c_file.with_suffix("")
-            try:
-                compile_result = subprocess.run(
-                    ["gcc", "-c", c_file, "-o", c_compiled_file],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-                compile_result.check_returncode()
-            except Exception as e:
-                print("# 事前に用意したファイルのエラー")
-                print(f"* `{" ".join(map(str, compile_result.args))}`")
-                print_codeblock(compile_result.stderr, "bash")
-                for compiled in c_compiled_files:
-                    compiled.unlink()
-                exit(1)    
-            c_compiled_files.append(c_compiled_file)
-    
+    c_compiled_files = compile_prepared_c_files(header_dir)
     config_file = Path('config.ini')
     student_list = None
     config_ini = configparser.ConfigParser()
