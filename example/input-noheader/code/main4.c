@@ -1,11 +1,18 @@
 #include <stdio.h>
 
 int main(void){
-    int a, b;
-    while (1)
-    {
-        /* code */
-    }
-    
+    int a[2];
+    scanf("%d", &a[0]);
+    scanf("%d", &a[1]);
+    //無限ループ
+    while(1){}
+    printf("%d\n", a[0]+a[1]);
+    printf("%d\n", a[0]-a[1]);
+    printf("%d\n", a[0]*a[1]);
+    printf("%d\n", a[0]/a[1]);
+    int tmp = a[0];
+    a[0] = a[1];
+    a[1] = tmp;
+    printf("%d\n", a[0]-a[1]);
     return 0;
 }

@@ -1,10 +1,16 @@
 #include <stdio.h>
 
 int main(void){
-    int a, b;
-    scanf("%d", &a);
-    scanf("%d", &b);
-    printf("%d\n", a+b);
-    printf("%d\n", a-b);
+    int a[2];
+    scanf("%d", &a[0]);
+    scanf("%d", &a[1]);
+    printf("%d\n", a[0]+a[1]);
+    printf("%d\n", a[0]-a[1]);
+    printf("%d\n", a[0]*a[1]);
+    printf("%d\n", a[0]/a[1]);
+    int tmp = a[0];
+    a[0] = a[1];
+    a[1] = tmp;
+    printf("%d\n", a[0]-a[1]);
     return 0;
 }
