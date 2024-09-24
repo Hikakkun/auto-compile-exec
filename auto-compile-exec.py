@@ -5,6 +5,7 @@ import argparse
 import sys
 import traceback
 import re
+
 # 各種タイムアウト時間を設定
 COMPILE_TIMEOUT = 4
 EXECUTION_TIMEOUT = 2
@@ -80,37 +81,55 @@ def print_source(file_path: Path):
     print_codeblock(display_command_result.stdout, "c")
 
 
-def execution(executable_file_path: Path, execution_timeout: int, infile = None, outfile = None):
+def execution(
+    executable_file_path: Path, execution_timeout: int, infile=None, outfile=None
+):
     """
     指定された実行可能ファイルを実行し、結果をコードブロックとして出力します。
 
     Parameters:
-    executable_file_path (Path): 実行可能ファイルのパス。
-    execution_timeout (int): 実行タイムアウトの秒数。
-    infile (file object, optional): 標準入力として使用するファイルオブジェクト。デフォルトは None。
+        executable_file_path (Path): 実行可能ファイルのパス。
+        execution_timeout (int): 実行タイムアウトの秒数。
+        infile (file object, optional): 標準入力として使用するファイルオブジェクト。デフォルトは None。
+        outfile (file object, optional): 標準出力として使用するファイルオブジェクト。デフォルトは None。
     """
     infile = subprocess.PIPE if infile is None else infile
     outfile = subprocess.PIPE if infile is None else outfile
-    exe_result: subprocess.CompletedProcess = subprocess.run(
+    _: subprocess.CompletedProcess = subprocess.run(
         [executable_file_path],
         stdin=infile,
-        stdout=outfile,  
+        stdout=outfile,
         text=True,
         timeout=execution_timeout,
     )
 
 
 def pair_input_output(directory) -> list[tuple[Path, Path]]:
+    """
+    指定されたディレクトリ内の入力ファイルと対応する出力ファイルのペアを取得します。
+
+    この関数は、ファイル名に基づいてinファイルとoutファイルをペアにして返します。
+
+    Parameters:
+        directory (str): 入力および出力ファイルが含まれるディレクトリのパス。
+
+    Returns:
+        list[tuple[Path, Path]]: 対応する入力ファイルと出力ファイルのペアのリスト。
+    """
     # ディレクトリをPathオブジェクトに変換
     dir_path = Path(directory)
-    
+
     # 正規表現でinとoutファイルを識別
-    input_files = sorted([f for f in dir_path.glob('in*.txt') if re.match(r'in\d+\.txt', f.name)])
-    output_files = sorted([f for f in dir_path.glob('out*.txt') if re.match(r'out\d+\.txt', f.name)])
+    input_files = sorted(
+        [f for f in dir_path.glob("in*.txt") if re.match(r"in\d+\.txt", f.name)]
+    )
+    output_files = sorted(
+        [f for f in dir_path.glob("out*.txt") if re.match(r"out\d+\.txt", f.name)]
+    )
 
     # ファイル番号を抽出して辞書に変換
-    input_dict = {int(re.search(r'\d+', f.name).group()): f for f in input_files}
-    output_dict = {int(re.search(r'\d+', f.name).group()): f for f in output_files}
+    input_dict = {int(re.search(r"\d+", f.name).group()): f for f in input_files}
+    output_dict = {int(re.search(r"\d+", f.name).group()): f for f in output_files}
 
     # タプルで(inのパス, outのパス)のペアを作成
     pairs = []
@@ -120,15 +139,31 @@ def pair_input_output(directory) -> list[tuple[Path, Path]]:
         else:
             # エラー 後で書く
             exit(45)
-    
+
     return pairs
 
-def auto_compile_exec(target_dir : Path, 
-                compile_timeout: int,
+
+def auto_compile_exec(
+    target_dir: Path,
+    compile_timeout: int,
     execution_timeout: int,
-    intput_output_dir : Path | None = None,
-    header_dir : Path | None = None):
-    c_files = list(target_dir.rglob('*.c'))
+    intput_output_dir: Path | None = None,
+    header_dir: Path | None = None,
+):
+    """
+    指定されたディレクトリ内のCファイルをコンパイルし、結果を実行します。
+
+    コンパイルエラーやタイムアウトが発生した場合、その詳細を出力します。
+    実行後、指定された入力と期待される出力を比較し、差分を表示します。
+
+    Parameters:
+        target_dir (Path): Cファイルが含まれるディレクトリのパス。
+        compile_timeout (int): コンパイルのタイムアウト時間（秒）。
+        execution_timeout (int): 実行のタイムアウト時間（秒）。
+        intput_output_dir (Path, optional): 入力ファイルと出力ファイルが含まれるディレクトリのパス。デフォルトは None。
+        header_dir (Path, optional): ヘッダファイルが含まれるディレクトリのパス。デフォルトは None。
+    """
+    c_files = list(target_dir.rglob("*.c"))
     print_source_error = False
     for file in sorted(c_files):
         print(f"## {file.name}")
@@ -144,14 +179,22 @@ def auto_compile_exec(target_dir : Path,
             print("* Is the command correct?")
             print("* Is the command path correct?")
             print_source_error = True
-            break            
-            
+            break
+
         filepath_after_compile = file.with_suffix("")
         if header_dir is None:
             compile_command = ["gcc", file, "-o", filepath_after_compile]
         else:
-            c_files = list(header_dir.glob('*.c'))
-            compile_command = ["gcc", "-I", header_dir, "-o", filepath_after_compile, file, *c_files]
+            c_files = list(header_dir.glob("*.c"))
+            compile_command = [
+                "gcc",
+                "-I",
+                header_dir,
+                "-o",
+                filepath_after_compile,
+                file,
+                *c_files,
+            ]
         try:
             compile_result = subprocess.run(
                 compile_command,
@@ -168,8 +211,8 @@ def auto_compile_exec(target_dir : Path,
         except subprocess.TimeoutExpired:
             print("### compile timeout")
             print(f"コンパイルが{compile_timeout}秒を超えたため強制終了しました")
-            continue        
-        
+            continue
+
         print("### 実行結果")
         if intput_output_dir:
             intput_output_pair_list = pair_input_output(intput_output_dir)
@@ -177,28 +220,33 @@ def auto_compile_exec(target_dir : Path,
                 print(f"#### 入力-{input_file.name}")
                 with input_file.open("r") as infile:
                     print_codeblock(infile.read(), "txt", input_file)
-                print("#### 出力")
+                print("##### 出力")
                 output_file_path = filepath_after_compile.with_suffix(".txt")
                 with input_file.open("r") as infile:
                     with output_file_path.open("w") as outfile:
                         try:
-                            execution(filepath_after_compile, execution_timeout, infile, outfile)
+                            execution(
+                                filepath_after_compile,
+                                execution_timeout,
+                                infile,
+                                outfile,
+                            )
                         except subprocess.TimeoutExpired:
                             print(
                                 f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました"
                             )
                             break
-                                    
-                with output_file_path.open("r") as outfile:  
+
+                with output_file_path.open("r") as outfile:
                     print_codeblock(outfile.read())
-                print("#### diff")
+                print("##### diff")
                 diff_result = subprocess.run(
-                    ["diff", "-wB", expected_file , output_file_path],
+                    ["diff", "-wB", expected_file, output_file_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
                 )
-            
+
                 if diff_result.returncode == 0:
                     print("* ok")
                 else:
@@ -211,12 +259,10 @@ def auto_compile_exec(target_dir : Path,
                 execution(filepath_after_compile, execution_timeout)
             except subprocess.TimeoutExpired:
                 print(f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました")
-                continue            
+                continue
     if print_source_error:
         exit(1)
-        
-        
-    
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -230,7 +276,7 @@ def main():
         "--input_output",
         help="Path to the directory containing input and expected output text files.",
         type=Path,
-        default=None
+        default=None,
     )
 
     parser.add_argument(
@@ -238,7 +284,7 @@ def main():
         "--header",
         help="A directory containing pre-prepared c files",
         type=Path,
-        default=None
+        default=None,
     )
 
     parser.add_argument(
@@ -248,17 +294,14 @@ def main():
     )
 
     args = parser.parse_args()
-    
+
     target_dir = Path(args.target_dir)
     input_output_dir = Path(args.input_output) if args.input_output else None
     header_dir = Path(args.header) if args.header else None
 
     if args.nooutput:
         auto_compile_exec(
-            target_dir,
-            COMPILE_TIMEOUT,
-            EXECUTION_TIMEOUT,
-            input_output_dir, header_dir
+            target_dir, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_output_dir, header_dir
         )
     else:
         dir_name = target_dir.resolve().name
@@ -272,7 +315,8 @@ def main():
                     target_dir,
                     COMPILE_TIMEOUT,
                     EXECUTION_TIMEOUT,
-                    input_output_dir, header_dir
+                    input_output_dir,
+                    header_dir,
                 )
             finally:
                 sys.stdout = sys.__stdout__
