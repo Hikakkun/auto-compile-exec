@@ -171,6 +171,31 @@ def compile_prepared_c_files(header_dir: Path) -> list[Path]:
         compiled_files.append(compiled_file)
     return compiled_files
 
+def get_student_list(config_file : Path) -> list[str] | None:
+    """
+    config.iniファイルから学生のリストを取得します。
+
+    Parameters:
+        config_file (Path): config.iniファイルのパス。
+
+    Returns:
+        list[str] | None: 学生番号のリスト。取得できない場合はNone。
+    """
+    student_list = None
+    config_ini = configparser.ConfigParser()
+    try:
+        config_ini.read(config_file, encoding='utf-8')
+        try:
+            student_list_str = config_ini.get("DEFAULT", "StudentList")
+            student_list = json.loads(student_list_str)
+        except configparser.NoOptionError as no_option_error:
+            if config_file.exists():
+                print(f"* {str(config_file)} は存在していますが `config_ini.get(\"DEFAULT\", \"StudentList\")`の値がありません")
+    except configparser.ParsingError as parsing_error:
+        print("* config.ini をパースできません")
+        print_codeblock(str(parsing_error), "bash")
+    return student_list
+
 def auto_compile_exec(
     target_dir: Path,
     compile_timeout: int,
@@ -193,21 +218,8 @@ def auto_compile_exec(
     """
     # TAが用意するソースコードを事前コンパイル
     c_compiled_files = compile_prepared_c_files(header_dir)
-    config_file = Path('config.ini')
-    student_list = None
-    config_ini = configparser.ConfigParser()
-    try:
-        config_ini.read(config_file, encoding='utf-8')
-        try:
-            student_list_str = config_ini.get("DEFAULT", "StudentList")
-            student_list = json.loads(student_list_str)
-        except configparser.NoOptionError as no_option_error:
-            if config_file.exists():
-                print("""* config.ini は存在していますが `config_ini.get("DEFAULT", "StudentList")`の値がありません""")
-                
-    except configparser.ParsingError as parsing_error:
-        print("* config.ini をパースできません")
-        print_codeblock(str(parsing_error), "bash")
+    # congig.ini があればそれを確認
+    student_list = get_student_list(Path('config.ini'))
     
     c_files : list[Path] = list(target_dir.rglob("*.c"))
     if student_list is None:
