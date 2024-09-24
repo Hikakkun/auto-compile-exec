@@ -3,9 +3,9 @@ from pathlib import Path
 import subprocess
 import argparse
 import sys
-import traceback
 import re
-
+import configparser
+import json
 # 各種タイムアウト時間を設定
 COMPILE_TIMEOUT = 4
 EXECUTION_TIMEOUT = 2
@@ -67,43 +67,34 @@ def print_codeblock(code: str, language: str = None, file_name: str = None):
 
 
 # コード出力の部分を変更したい場合この関数を変更
-def print_source(file_path: Path):
+def print_source(file_path: Path, display_command : str = "clang-format"):
     """
     指定されたファイルの内容をコードブロックとして出力します。clang-format を使用して整形します。
 
     Parameters:
     file_path (Path): ソースファイルのパス。
     """
-    display_command = "clang-format"
     display_command_result: subprocess.CompletedProcess = subprocess.run(
         [display_command, file_path], capture_output=True, text=True
     )
-    print_codeblock(display_command_result.stdout, "c")
+    print_codeblock(display_command_result.stdout, "c", file_path)
 
-
-def execution(
-    executable_file_path: Path, execution_timeout: int, infile=None, outfile=None
-):
-    """
-    指定された実行可能ファイルを実行し、結果をコードブロックとして出力します。
-
-    Parameters:
-        executable_file_path (Path): 実行可能ファイルのパス。
-        execution_timeout (int): 実行タイムアウトの秒数。
-        infile (file object, optional): 標準入力として使用するファイルオブジェクト。デフォルトは None。
-        outfile (file object, optional): 標準出力として使用するファイルオブジェクト。デフォルトは None。
-    """
-    infile = subprocess.PIPE if infile is None else infile
-    outfile = subprocess.PIPE if infile is None else outfile
-    _: subprocess.CompletedProcess = subprocess.run(
-        [executable_file_path],
-        stdin=infile,
-        stdout=outfile,
-        text=True,
-        timeout=execution_timeout,
-    )
-
-
+def print_runtime_error(error_code : int):
+    match error_code:
+        case -6:
+            print("* abort")
+            print("* abort()関数が呼ばれたとき。プログラムが異常終了する場合など")
+        case -7:
+            print("* Bus error")
+            print("* メモリアラインメントが不正です（例: 整数が奇数アドレスに置かれるなど）")
+        case -8:
+            print("* Floating point exception")
+            print("*  0での除算や不正な浮動小数点演算が行われました")
+        case -11:
+            print("* Segmentation fault")
+            print("* 無効なメモリアクセスが行われました(配列の範囲外アクセス、NULLポインタへのアクセス)")
+        case _:
+            print(f"* return_code = {error_code}")
 def pair_input_output(directory) -> list[tuple[Path, Path]]:
     """
     指定されたディレクトリ内の入力ファイルと対応する出力ファイルのペアを取得します。
@@ -163,29 +154,68 @@ def auto_compile_exec(
         intput_output_dir (Path, optional): 入力ファイルと出力ファイルが含まれるディレクトリのパス。デフォルトは None。
         header_dir (Path, optional): ヘッダファイルが含まれるディレクトリのパス。デフォルトは None。
     """
-    c_files = list(target_dir.rglob("*.c"))
-    print_source_error = False
-    for file in sorted(c_files):
+    # TAが用意するソースコードを事前コンパイル
+    c_compiled_files :list[Path] = []
+    if header_dir:
+        c_compile_files = list(header_dir.glob("*.c"))
+        for c_file in c_compile_files:
+            c_compiled_file = c_file.with_suffix("")
+            try:
+                compile_result = subprocess.run(
+                    ["gcc", "-c", c_file, "-o", c_compiled_file],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                compile_result.check_returncode()
+            except Exception as e:
+                print("# 事前に用意したファイルのエラー")
+                print(f"* `{" ".join(map(str, compile_result.args))}`")
+                print_codeblock(compile_result.stderr, "bash")
+                for compiled in c_compiled_files:
+                    compiled.unlink()
+                exit(1)    
+            c_compiled_files.append(c_compiled_file)
+    
+    config_file = Path('config.ini')
+    student_list = None
+    config_ini = configparser.ConfigParser()
+    try:
+        config_ini.read(config_file, encoding='utf-8')
+        try:
+            student_list_str = config_ini.get("DEFAULT", "StudentList")
+            student_list = json.loads(student_list_str)
+        except configparser.NoOptionError as no_option_error:
+            if config_file.exists():
+                print("""* config.ini は存在していますが `config_ini.get("DEFAULT", "StudentList")`の値がありません""")
+                
+    except configparser.ParsingError as parsing_error:
+        print("* config.ini をパースできません")
+        print_codeblock(str(parsing_error), "bash")
+    
+    c_files : list[Path] = list(target_dir.rglob("*.c"))
+    if student_list is None:
+        target_file_list = sorted(c_files)
+    else:
+        student_set = {student_number for student_number in map(str, student_list)}
+        print(f"* `{student_set=}`")
+        target_file_list = sorted(list(filter(lambda file : file.stem in student_set, c_files)))
+        
+
+    for file in target_file_list:
         print(f"## {file.name}")
         print("### source file")
+        #提出されたソースコードを表示
         try:
             print_source(file)
         except FileNotFoundError:
-            print(traceback.format_exc())
-            print(
-                "There is a problem with the arguments of the subprocess.run function in the print_source function."
-            )
-            print("Please check the following:")
-            print("* Is the command correct?")
-            print("* Is the command path correct?")
-            print_source_error = True
-            break
+            # clang-formater が見つからない場合 cat を使用
+            print_source(file, "cat")
 
         filepath_after_compile = file.with_suffix("")
         if header_dir is None:
             compile_command = ["gcc", file, "-o", filepath_after_compile]
-        else:
-            c_files = list(header_dir.glob("*.c"))
+        else:                
             compile_command = [
                 "gcc",
                 "-I",
@@ -193,8 +223,9 @@ def auto_compile_exec(
                 "-o",
                 filepath_after_compile,
                 file,
-                *c_files,
+                *c_compiled_files,
             ]
+
         try:
             compile_result = subprocess.run(
                 compile_command,
@@ -218,51 +249,73 @@ def auto_compile_exec(
             intput_output_pair_list = pair_input_output(intput_output_dir)
             for input_file, expected_file in intput_output_pair_list:
                 print(f"#### 入力-{input_file.name}")
-                with input_file.open("r") as infile:
-                    print_codeblock(infile.read(), "txt", input_file)
-                print("##### 出力")
+                print_codeblock(input_file.read_text(), "txt", input_file)
                 output_file_path = filepath_after_compile.with_suffix(".txt")
-                with input_file.open("r") as infile:
-                    with output_file_path.open("w") as outfile:
-                        try:
-                            execution(
-                                filepath_after_compile,
-                                execution_timeout,
-                                infile,
-                                outfile,
-                            )
-                        except subprocess.TimeoutExpired:
-                            print(
-                                f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました"
-                            )
-                            break
+                with (
+                    input_file.open("r") as infile,
+                    output_file_path.open("w") as outfile
+                ):
+                    try:
+                        exe_result = subprocess.run(
+                            [filepath_after_compile],
+                            stdin=infile,
+                            stdout=outfile,
+                            text=True,
+                            timeout=execution_timeout,
+                        )
+                        exe_result.check_returncode()
+                    except subprocess.CalledProcessError:
+                        print("#### Runtime error")
+                        print_runtime_error(exe_result.returncode)
+                    except subprocess.TimeoutExpired:
+                        print(
+                            f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました"
+                        )
+                        break
+                    else:
+                        print("##### 出力")
+                        print_codeblock(output_file_path.read_text())
+                        print("##### diff")
+                        diff_result = subprocess.run(
+                            ["diff", "-wB", expected_file, output_file_path],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                        )
 
-                with output_file_path.open("r") as outfile:
-                    print_codeblock(outfile.read())
-                print("##### diff")
-                diff_result = subprocess.run(
-                    ["diff", "-wB", expected_file, output_file_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-
-                if diff_result.returncode == 0:
-                    print("* ok")
-                else:
-                    print("* NG")
-                    print_codeblock(diff_result.stdout)
-                output_file_path.unlink()
+                        if diff_result.returncode == 0:
+                            print("* ok")
+                        else:
+                            print("* NG")
+                            print_codeblock(diff_result.stdout)
+                    finally:
+                        output_file_path.unlink()
+            filepath_after_compile.unlink()
         else:
             # 入力ファイルが無い場合
             try:
-                execution(filepath_after_compile, execution_timeout)
+                exe_result = subprocess.run(
+                    [filepath_after_compile],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=execution_timeout,
+                )
+                exe_result.check_returncode()
+                print("#### 出力")
+                print_codeblock(exe_result.stdout ,"txt")
+            except subprocess.CalledProcessError:
+                print("#### Runtime error")
+                print_runtime_error(exe_result.returncode)
+                continue                                
             except subprocess.TimeoutExpired:
                 print(f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました")
                 continue
-    if print_source_error:
-        exit(1)
-
+            finally:
+                filepath_after_compile.unlink()
+    for compiled_file in c_compiled_files:
+        compiled_file.unlink()
+        
 
 def main():
     parser = argparse.ArgumentParser(
