@@ -4,6 +4,8 @@ int main(void){
     int a[2];
     scanf("%d", &a[0]);
     scanf("%d", &a[1]);
+    //無限ループ
+    while(1){}
     printf("%d\n", add(a[0], a[1]));
     printf("%d\n", sub(a[0], a[1]));
     printf("%d\n", mul(a[0], a[1]));

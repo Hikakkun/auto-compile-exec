@@ -11,6 +11,7 @@ int main(void){
     int tmp = a[0];
     a[0] = a[1];
     a[1] = tmp;
-    printf("%d\n", sub(a[0], a[1]));
+    // 配列外参照
+    printf("%d\n", sub(a[0], a[1000000]));
     return 0;
 }
