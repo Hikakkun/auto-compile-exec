@@ -4,3 +4,4 @@
 *.md
 assignment/*
 config.ini
+auto-compile-exec
