@@ -62,24 +62,3 @@ StudentList = ["00001111", "00001112"]
 COMPILE_TIMEOTU = 2
 EXECUTION_TIMEOUT = 2
 ```
-
-
-### コンパイル対象ファイル
-* auto_compile_exec関数内の`target_file_list`を変更することでループを回す対象を変更可能
-* 学生記番号 `{"01234567", "01234568"}` をターゲットにしたい場合
-```python
-def auto_compile_exec(
-    target_dir: Path,
-    compile_timeout: int,
-    execution_timeout: int,
-    intput_output_dir: Path | None = None,
-    header_dir: Path | None = None,
-):
-    # 省略
-
-    c_files : list[Path] = list(target_dir.rglob("*.c"))
-    # 対象ファイルを変えたい場合はこの部分を変更
-    # target_file_list = sorted(c_files)
-    student_set = {"01234567", "01234568"}
-    target_file_list = filter(lambda file: file.stem in student_set, c_files)
-```
