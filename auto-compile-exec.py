@@ -6,6 +6,7 @@ import sys
 import re
 import configparser
 import json
+from collections import defaultdict
 # 各種タイムアウト時間を設定
 COMPILE_TIMEOUT = 4
 EXECUTION_TIMEOUT = 2
@@ -196,8 +197,19 @@ def get_student_list(config_file : Path) -> list[str] | None:
         print_codeblock(str(parsing_error), "bash")
     return student_list
 
+def get_c_files_dict(directories: list[Path]) -> dict[str, list[Path]]:
+    c_files : list[Path]= []
+    for directory in directories:
+        # ディレクトリ内のすべての .c ファイルを取得
+        c_files.extend(directory.glob('*.c'))
+        
+    c_file_dict : dict[str, list[Path]]= defaultdict(list)
+    for c_file in c_files:
+        c_file_dict[c_file.stem].append(c_file)
+    return c_file_dict
+
 def auto_compile_exec(
-    target_dir: Path,
+    target_dir_list: list[Path],
     compile_timeout: int,
     execution_timeout: int,
     intput_output_dir: Path | None = None,
@@ -221,6 +233,7 @@ def auto_compile_exec(
     # congig.ini があればそれを確認
     student_list = get_student_list(Path('config.ini'))
     
+    target_dir : Path = target_dir_list.pop(0)
     c_files : list[Path] = list(target_dir.rglob("*.c"))
     if student_list is None:
         target_file_list = sorted(c_files)
@@ -229,10 +242,11 @@ def auto_compile_exec(
         print(f"* `{student_set=}`")
         target_file_list = sorted(list(filter(lambda file : file.stem in student_set, c_files)))
         
-
+    c_file_dict = get_c_files_dict(target_dir_list)
     for file in target_file_list:
         print(f"## {file.name}")
         print("### source file")
+        print(f"* {str(file)}")
         #提出されたソースコードを表示
         try:
             print_source(file)
@@ -240,6 +254,15 @@ def auto_compile_exec(
             # clang-formater が見つからない場合 cat を使用
             print_source(file, "cat")
 
+        for another_file in c_file_dict.get(file.stem, []):
+            #提出されたソースコードを表示
+            print(f"* {str(another_file)}")
+            try:
+                print_source(another_file)
+            except FileNotFoundError:
+                # clang-formater が見つからない場合 cat を使用
+                print_source(another_file, "cat")            
+            
         filepath_after_compile = file.with_suffix("")
         if header_dir is None:
             compile_command = ["gcc", file, "-o", filepath_after_compile]
@@ -251,6 +274,7 @@ def auto_compile_exec(
                 "-o",
                 filepath_after_compile,
                 file,
+                *c_file_dict.get(file.stem, []),
                 *c_compiled_files,
             ]
 
@@ -350,7 +374,8 @@ def main():
         description="This script will compile all the source code in the folder."
     )
     parser.add_argument(
-        "target_dir", help="The path to the folder containing the source code."
+        "target_dir", help="The path to the folder containing the source code.",
+        nargs="+"
     )
     parser.add_argument(
         "-io",
@@ -375,17 +400,17 @@ def main():
     )
 
     args = parser.parse_args()
-
-    target_dir = Path(args.target_dir)
+    
+    target_dir_list = list(map(lambda fila_path : Path(fila_path), args.target_dir))
     input_output_dir = Path(args.input_output) if args.input_output else None
     header_dir = Path(args.header) if args.header else None
 
     if args.nooutput:
         auto_compile_exec(
-            target_dir, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_output_dir, header_dir
+            target_dir_list, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_output_dir, header_dir
         )
     else:
-        dir_name = target_dir.resolve().name
+        dir_name = target_dir_list[0].resolve().name
         output_file = Path.cwd() / f"{dir_name}_out.md"
         with output_file.open("w") as outfile:
             dual_output = DualOutput(sys.stdout, outfile)
@@ -393,7 +418,7 @@ def main():
             sys.stderr = dual_output
             try:
                 auto_compile_exec(
-                    target_dir,
+                    target_dir_list,
                     COMPILE_TIMEOUT,
                     EXECUTION_TIMEOUT,
                     input_output_dir,

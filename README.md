@@ -47,6 +47,8 @@ StudentList = ["00001111", "00001112"]
 1. 分割コンパイルを行いなおかつ入出力でdiffを取る
     * 学生が提出しているのは関数の実装
     * `./auto-compile-exec.py ./example/header-submit-func/code  -io  ./example/header-submit-func/inout/  -H  ./example/header-submit-func/header/`
+1. 提出が複数あるタイプで入出力でdiffを取る
+    * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/  -H ./example/submit-double/header/ -io ./example/submit-double/inout/`
 1. 結果をmarkdownに出力せずにコンパイルおよび実行
     * `./auto-compile-exec.py ./example/noinput-noheader/code --nooutput`
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --nooutput`
