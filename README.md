@@ -5,9 +5,11 @@
 
 ## 環境構築
 * python 3.10 以上
-    * [typing.Optional](https://docs.python.org/ja/3/library/typing.html#typing.Optional), [with文のネスト](https://docs.python.org/ja/3/reference/compound_stmts.html#the-with-statement) を利用しているため
+    * [typing.Optional(型ヒント)](https://docs.python.org/ja/3/library/typing.html#typing.Optional), [with文のネスト](https://docs.python.org/ja/3/reference/compound_stmts.html#the-with-statement) を利用しているため
     * 3.12で実行確認済み
-    * Linux, Max OSでは動くはず
+    * Linux, Mac OSでは動くはず
+        * Mac OSはバージョンによってプリインストールのPythonバージョンが3.9のことがあるのでbrewで3.10以上をインストールしてください
+    * Windowsでは動作検証していないがPythonにパスが通っていれば動くはず
 * clang-format
     * 各sourceを出力するときに使用
     * 生徒のコードを自動でフォーマットしてくれる
@@ -22,11 +24,11 @@
 python auto-compile-exec.py <target_dir> [-io or --input_output]  input_output_dir [-H or --header] header_dir [--nooutput]
 ```
 * 引数
-    * target_dir：Cソースファイルが含まれるディレクトリのパス。
+    * target_dir：Cソースファイルが含まれるディレクトリのパス。複数ディレクトリ指定可能
     * input_output_dir：オプション。入力ファイルと出力期待値ファイルが格納されているディレクトリ
         * in\d.txt out\d.txt のみを受付それぞれ一組とする
-    * header_dir : オプション TA側が用意するプログラムが格納されているディレクトリ
-    * --nooutput：オプション。コンパイル結果をテキストファイルに出力しない場合に指定します。
+    * header_dir : オプション TA側が用意する.cと.hが格納されているディレクトリ
+    * --nooutput：オプション。コンパイル結果をテキストファイルに出力せずにコンソールにのみ出力
 * config.ini が存在し DEFAULT StudentList に配列形式で学籍番号を記入している場合その学生のみがコンパイルのターゲットとなる
     * config.ini が存在しない or  config.ini の書き方が間違えている場合はtarget_dir すべてがコンパイルの対象になる 
 ```ini:config.ini
@@ -46,10 +48,10 @@ StudentList = ["00001111", "00001112"]
     * `./auto-compile-exec.py ./example/header-submit-main/code -io ./example/header-submit-main/inout/ -H ./example/header-submit-main/header/`
 1. 分割コンパイルを行いなおかつ入出力でdiffを取る
     * 学生が提出しているのは関数の実装
-    * `./auto-compile-exec.py ./example/header-submit-func/code  -io  ./example/header-submit-func/inout/  -H  ./example/header-submit-func/header/`
+    * `./auto-compile-exec.py ./example/header-submit-func/code -io ./example/header-submit-func/inout/ -H ./example/header-submit-func/header/`
 1. 提出が複数あるタイプで入出力でdiffを取る
-    * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/  -H ./example/submit-double/header/ -io ./example/submit-double/inout/`
-1. 結果をmarkdownに出力せずにコンパイルおよび実行
+    * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/ -H ./example/submit-double/header/ -io ./example/submit-double/inout/`
+1. 結果をMarkdownに出力せずにコンパイルおよび実行
     * `./auto-compile-exec.py ./example/noinput-noheader/code --nooutput`
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --nooutput`
 
@@ -58,7 +60,7 @@ StudentList = ["00001111", "00001112"]
 * 以下の変数の値を変更することで各タイムアウトの時間を変更可能
     * COMPILE_TIMEOTU : コンパイルの制限時間を設定
     * EXECUTION_TIMEOUT : プログラム実行時間の制限時間を設定
-        * scanfに,が入っている or 無限ループプログラムを弾くため
+        * 無限ループプログラムを弾くため
 ```python
 # 各種タイムアウト時間を設定
 COMPILE_TIMEOTU = 2
