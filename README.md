@@ -64,3 +64,53 @@ StudentList = ["00001111", "00001112"]
 COMPILE_TIMEOTU = 2
 EXECUTION_TIMEOUT = 2
 ```
+
+## gcc
+* このような構造の場合
+```bash
+├── code
+│   ├── 00000001.c  //haader内の関数を用いて計算
+│   ├── 00000002.c
+│   └── 00000003.c
+└── header          //簡単な演算を定義
+    ├── add.c
+    ├── dev.c
+    ├── mul.c
+    ├── operator.h
+    └── sub.c
+```
+* 以下のようなコマンドで`00000001.c`をコンパイル可能
+    * `gcc -I header/ code/00000001.c  header/add.c header/dev.c header/mul.c header/sub.c`
+        * -I オプションをつけないと `code/00000001.c` が ` #include "operator.h"` を見つられずにエラー
+        ```basu 
+        > gcc  code/main0.c  header/add.c header/dev.c header/mul.c header/sub.c
+        code/main0.c:2:10: fatal error: operator.h: No such file or directory
+            2 | #include "operator.h"
+            |          ^~~~~~~~~~~~
+        compilation terminated.
+        ```
+* `header/` 以下のソースは事前にコンパイルしておくと効率的
+    * 以下を実行した後に
+        * `gcc -I header/ -c  header/add.c -o header/add.o` 
+        * `gcc -I header/ -c  header/sub.c -o header/sub.o`
+        * `gcc -I header/ -c  header/dev.c -o header/dev.o`
+        * `gcc -I header/ -c  header/mul.c -o header/mul.o`
+    * `gcc -I header/ code/main0.c header/add.o header/dev.o header/mul.o header/sub.o`
+* 提出ファイルが複数ある場合も同様に
+```bash
+├── main
+│   ├── 00000001.c  //haader内の関数を用いて計算
+│   ├── 00000002.c
+│   └── 00000003.c
+├── add
+│   ├── 00000001.c  //add関数を実装
+│   ├── 00000002.c
+│   └── 00000003.c
+└── header          //簡単な演算を定義
+    ├── dev.c
+    ├── mul.c
+    ├── operator.h
+    └── sub.c
+```
+* `gcc -I header/ main/00000001.c add/00000001.c header/dev.c header/mul.c header/sub.c`
+* もしくは `header/` 以下をコンパイルして `gcc -I header/ main/00000001.c add/00000001.c header/dev.o header/mul.o header/sub.o` 
