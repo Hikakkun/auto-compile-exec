@@ -265,7 +265,7 @@ def auto_compile_exec(
             
         filepath_after_compile = file.with_suffix("")
         if header_dir is None:
-            compile_command = ["gcc", file, "-o", filepath_after_compile]
+            compile_command = ["gcc", file, "-o", filepath_after_compile, "-lm"]
         else:                
             compile_command = [
                 "gcc",
@@ -276,6 +276,7 @@ def auto_compile_exec(
                 file,
                 *c_file_dict.get(file.stem, []),
                 *c_compiled_files,
+                "-lm"
             ]
 
         try:
