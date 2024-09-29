@@ -3,6 +3,55 @@
 ## 概要
 このスクリプトは、指定されたディレクトリ内のCソースファイルを自動的にコンパイルし、実行結果を出力するためのツールです。スクリプトは、コンパイルおよび実行のタイムアウトを設定でき、結果をMarkdown形式で保存することができます。
 
+## 改修案(2024/09/30)
+* diffのOK/NGで再提出を決めるならjsonなどの構造化データでまとめたほうがいい気がする
+* 各課題ごとにjsonを吐き出してコマンドラインorプログラムで確認
+    * [jq コマンド](https://jqlang.github.io/jq/)
+    * [jq コマンド マニュアル](https://jqlang.github.io/jq/manual/)
+    * [jq コマンドを使う日常のご紹介(Qiita)](https://qiita.com/takeshinoda@github/items/2dec7a72930ec1f658af)
+        * コマンドラインでjsonを整形 集計できる
+* 提出されたプログラムは以下の通り
+```json
+{
+    "programs" : {
+        "student_numberA" : {
+            "sources" : [
+                "cのコード",
+                "cのコード"
+            ],  
+            "compile_error":null,
+            "execution" : [
+                {
+                    "in" : "",
+                    "out" : "",
+                    "expected" : null or string,
+                    "diff" : null or string ,
+                    "runtime_error" : null or srting
+                }
+            ]          
+        },
+        "student_numberB" : {
+            "sources" : [
+                "cのコード",
+                "cのコード"
+            ],  
+            "compile_error":null,
+            "execution" : [
+                {
+                    "in" : "",
+                    "out" : "",
+                    "expected" : null or string,
+                    "diff" : null or string ,
+                    "runtime_error" : null or srting
+                }
+            ]          
+        },
+    }
+}
+```
+```json
+
+```
 ## 環境構築
 * python 3.10 以上
     * [typing.Optional(型ヒント)](https://docs.python.org/ja/3/library/typing.html#typing.Optional), [with文のネスト](https://docs.python.org/ja/3/reference/compound_stmts.html#the-with-statement) を利用しているため
