@@ -292,28 +292,29 @@ def auto_compile_exec(
             filepath_after_compile.unlink()
     for compiled_file in compiled_files:
         compiled_file.unlink()
-    print(json.dumps(output_json, indent=4))
+    
+    return json.dumps(output_json, indent=4)
     
 def main():
     parser = argparse.ArgumentParser(
-        description="This script will compile all the source code in the folder."
+        description="学生のプログラムを自動でコンパイルし、テストを実行するスクリプトです。指定したディレクトリ内のCソースコードをコンパイルし、必要に応じて入出力ファイルを用いた実行を行い、結果を収集します。"
     )
     parser.add_argument(
-        "target_dir", help="The path to the folder containing the source code.",
+        "target_dir",
+        help="ソースコードが含まれるディレクトリのパスを1つ以上指定してください。",
         nargs="+"
     )
     parser.add_argument(
         "-io",
         "--input_output",
-        help="Path to the directory containing input and expected output text files.",
+        help="入出力テストデータ（入力ファイルと期待される出力ファイル）が含まれるディレクトリのパス。",
         type=Path,
         default=None,
     )
-
     parser.add_argument(
         "-I",
         "--include",
-        help="A directory containing pre-prepared c files",
+        help="事前に準備されたCファイルを含むディレクトリのパス。",
         type=Path,
         default=None,
     )
@@ -321,21 +322,23 @@ def main():
     parser.add_argument(
         "-sn",
         "--student_number",
+        help="学生番号をパイプ(|)区切りで指定します。指定しない場合はconfig.iniから読み取ります。",
         type=str,
         default=None
     )
-    
     parser.add_argument(
         "--nodiff",
+        help="出力の差分チェックをスキップする場合に使用します。",
         action="store_true"
     )
     parser.add_argument(
-        "--nooutput",
+        "--output_markdown",
+        help="コンパイル結果をテキストファイルに出力しない場合に使用します。",
         action="store_true",
-        help="Do not output compilation results to a text file.",
     )
     parser.add_argument(
         "--uninitialized_error",
+        help="未初期化変数に関するエラーを強制するためのオプションです。",
         action="store_true",
     )
 
@@ -347,7 +350,7 @@ def main():
         student_list = get_student_list_from_config_ini(Path("config.ini"))
     else:
         student_list = parse_student_number(args.student_number) 
-    auto_compile_exec(
+    json_str = auto_compile_exec(
         target_dir_list=target_dir_list,
         compile_timeout=COMPILE_TIMEOUT,
         execution_timeout=EXECUTION_TIMEOUT,
@@ -357,6 +360,12 @@ def main():
         student_list=student_list,
         uninitialized_errpr=args.uninitialized_error
     )
+    
+    if args.output_markdown:
+        from convert_md import convert_md
+        convert_md(json_str)
+    else:
+        print(json_str)
 
 if __name__ == "__main__":
     main()
