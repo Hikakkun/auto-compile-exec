@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from pathlib import Path
 import argparse
 import configparser
@@ -26,7 +27,7 @@ def get_student_list_from_config_ini(config_file : Path) -> list[str] | None:
         config_ini.read(config_file, encoding='utf-8')
         student_list_str = config_ini.get("DEFAULT", "StudentList")
         student_list = json.loads(student_list_str)    
-    except Exception as e:
+    except Exception as _:
         student_list = None    
     finally:
         return student_list
@@ -52,7 +53,7 @@ def get_soruce(path : Path, command : str = "clang-format"):
         capture_output=True, 
         text=True
     )
-    return result.stdout
+    return f"//{str(path)}" + "\n" + result.stdout
 
 def include_source_compile(include_dir : Path | None) -> list[Path]:
     if include_dir is None:
@@ -120,27 +121,120 @@ def get_runtime_error_info(error_code : int) -> str:
             return f"returncode={-11},segmentation fault"
         case _:
             return f"returncode={error_code},segmentation fault"
+
+def run_program(
+    executable_path: Path,
+    execution_timeout: int,
+    nodiff: bool,
+    input_file: Path | None = None,
+    expected_file: Path | None = None
+) -> dict:
+    """
+    コンパイルされたプログラムを実行し、実行結果を収集します。
+
+    Parameters:
+        executable_path (Path): 実行可能ファイルのパス。
+        execution_timeout (int): プログラムの実行タイムアウト時間（秒）。
+        nodiff (bool): 出力の差分チェックを行わない場合はTrue。
+        input_file (Path | None): 入力ファイルのパス（ない場合はNone）。
+        expected_file (Path | None): 期待される出力ファイルのパス（ない場合はNone）。
+
+    Returns:
+        dict: 実行結果を含む辞書。
+    """
+    runtime_error = None
+    output = None
+    input_txt = None
+    expected_txt = None
+    diff = None
+
+    if input_file:
+        # 入力ファイルと期待される出力を読み込み
+        input_txt = input_file.read_text()
+        if expected_file:
+            expected_txt = expected_file.read_text()
+        # 一時的な出力ファイルを作成
+        output_file_path = executable_path.with_suffix(".txt")
+        with (
+            input_file.open("r") as infile,
+            output_file_path.open("w") as outfile
+        ):
+            try:
+                exe_result = subprocess.run(
+                    [executable_path],
+                    stdin=infile,
+                    stdout=outfile,
+                    text=True,
+                    timeout=execution_timeout,
+                )
+                exe_result.check_returncode()
+            except subprocess.CalledProcessError:
+                runtime_error = get_runtime_error_info(exe_result.returncode)
+            except subprocess.TimeoutExpired:
+                runtime_error = "timeout"
+            else:
+                if not nodiff and expected_file:
+                    diff_result = subprocess.run(
+                        ["diff", "-wB", expected_file, output_file_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    if diff_result.returncode != 0:
+                        diff = diff_result.stdout
+            # 出力ファイルから出力を読み込み
+            output = output_file_path.read_text()
+            # 一時ファイルを削除
+            output_file_path.unlink()
+    else:
+        try:
+            exe_result = subprocess.run(
+                [executable_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=execution_timeout,
+            )
+            exe_result.check_returncode()
+            output = exe_result.stdout
+        except subprocess.CalledProcessError:
+            runtime_error = get_runtime_error_info(exe_result.returncode)
+        except subprocess.TimeoutExpired:
+            runtime_error = "timeout"
+
+    # 実行結果の辞書を作成
+    execution_result_dict = {
+        "in" : input_txt,
+        "out": output,
+        "expected" : expected_txt,
+        "diff" : diff,
+        "runtime_error": runtime_error,
+    }
+    return execution_result_dict
+
+
 def auto_compile_exec(
     target_dir_list: list[Path],
     compile_timeout: int,
     execution_timeout: int,
     intput_output_dir: Path | None,
     include_dir: Path | None,
-    nodiff : bool,
-    student_list : list[str] | None 
+    nodiff: bool,
+    student_list: list[str] | None,
+    uninitialized_errpr : bool,
 ):
     target_dir_dict_list = list(map(convert_dict_from_target_dir, target_dir_list))
     target_dir_dict = target_dir_dict_list.pop(0)
     compiled_files = include_source_compile(include_dir)
-    intput_output_pair_list : list[tuple[Path, Path]] | None = pair_input_output(intput_output_dir) if intput_output_dir  else None
+    intput_output_pair_list: list[tuple[Path, Path]] | None = pair_input_output(intput_output_dir) if intput_output_dir else None
 
     output_json = {}
     for student_number in sorted(target_dir_dict):
         data = dict()
         path = target_dir_dict[student_number]
-        other_paths = list(map(lambda dct : dct.get(student_number , None), target_dir_dict_list))   
-        path_list : list[Path] = [path, *other_paths]  
-        source_list : list[str] = [get_soruce(source_path) for source_path in path_list]
+        other_paths = list(map(lambda dct: dct.get(student_number, None), target_dir_dict_list))
+        path_list: list[Path] = [path, *other_paths]
+        source_list: list[str] = [get_soruce(source_path) for source_path in path_list]
         filepath_after_compile = path.with_suffix("")
         compile_command = [
             "gcc",
@@ -148,10 +242,10 @@ def auto_compile_exec(
             filepath_after_compile,
             *path_list,
             "-lm",
-            "-Wall",
-            "-Wuninitialized",
-            "-Werror"
-        ]        
+        ]
+        if uninitialized_errpr:
+            compile_command.extend(["-Wall", "-Wuninitialized", "-Werror"])
+            
         if include_dir:
             compile_command.extend(["-I", include_dir])
             compile_command.extend(compiled_files)
@@ -167,79 +261,30 @@ def auto_compile_exec(
                 timeout=compile_timeout,
             )
             compile_result.check_returncode()
-        except subprocess.CalledProcessError:   
+        except subprocess.CalledProcessError:
             compile_error = compile_result.stderr
         except subprocess.TimeoutExpired:
             compile_error = "timeout"
         else:
             if intput_output_pair_list:
                 for input_file, expected_file in intput_output_pair_list:
-                    output_file_path = filepath_after_compile.with_suffix(".txt")
-                    with (
-                        input_file.open("r") as infile,
-                        output_file_path.open("w") as outfile             
-                    ):
-                        runtime_error = None
-                        input_txt = input_file.read_text()
-                        expected_txt = expected_file.read_text()
-                        diff = None
-                        try:
-                            exe_result = subprocess.run(
-                                [filepath_after_compile],
-                                stdin=infile,
-                                stdout=outfile,
-                                text=True,
-                                timeout=execution_timeout,
-                            )
-                            exe_result.check_returncode()        
-                        except subprocess.CalledProcessError:
-                            runtime_error = get_runtime_error_info(exe_result.returncode)
-                        except subprocess.TimeoutExpired:
-                            runtime_error ="timeout"       
-                        else:
-                            if not nodiff:
-                                diff_result = subprocess.run(
-                                    ["diff", "-wB", expected_file, output_file_path],
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    text=True,
-                                )         
-                                if diff_result.returncode != 0:
-                                    diff = diff_result.stdout     
-                        execution_result_dict = {
-                            "in" : input_txt,
-                            "out" : output_file_path.read_text(),
-                            "expected" : expected_txt,
-                            "diff" : diff,
-                            "runtime_error" : runtime_error
-                        }
-                        execution_result_list.append(execution_result_dict)
-                        execution_result_dict
-                        output_file_path.unlink()
-            else:
-                runtime_error = ""
-                output = None
-                try:
-                    exe_result = subprocess.run(
-                        [filepath_after_compile],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=execution_timeout,
+                    execution_result_dict = run_program(
+                        executable_path=filepath_after_compile,
+                        execution_timeout=execution_timeout,
+                        nodiff=nodiff,
+                        input_file=input_file,
+                        expected_file=expected_file,
                     )
-                    exe_result.check_returncode()
-                    output = exe_result.stdout
-                except subprocess.CalledProcessError:
-                    runtime_error = get_runtime_error_info(exe_result.returncode)                               
-                except subprocess.TimeoutExpired:
-                    runtime_error="timeout"
-                execution_result_dict = {
-                    "out" : output,
-                    "runtime_error" : runtime_error
-                }                    
+                    execution_result_list.append(execution_result_dict)
+            else:
+                execution_result_dict = run_program(
+                    executable_path=filepath_after_compile,
+                    execution_timeout=execution_timeout,
+                    nodiff=nodiff,
+                )
                 execution_result_list.append(execution_result_dict)
         data["compile_error"] = compile_error
-        data["execution"] = execution_result_list 
+        data["execution"] = execution_result_list
         output_json[student_number] = data
         pprinter = pprint.PrettyPrinter(stream=sys.stderr)
         pprinter.pprint(data)
@@ -248,12 +293,6 @@ def auto_compile_exec(
     for compiled_file in compiled_files:
         compiled_file.unlink()
     print(json.dumps(output_json, indent=4))
-        
-        
-            
-        
-        
-    
     
 def main():
     parser = argparse.ArgumentParser(
@@ -295,7 +334,11 @@ def main():
         action="store_true",
         help="Do not output compilation results to a text file.",
     )
-    
+    parser.add_argument(
+        "--uninitialized_error",
+        action="store_true",
+    )
+
     args = parser.parse_args()
     target_dir_list = list(map(lambda fila_path : Path(fila_path), args.target_dir))
     input_output_dir = Path(args.input_output) if args.input_output else None
@@ -311,7 +354,8 @@ def main():
         intput_output_dir=input_output_dir,
         include_dir=include_dir,
         nodiff=args.nodiff,
-        student_list=student_list
+        student_list=student_list,
+        uninitialized_errpr=args.uninitialized_error
     )
 
 if __name__ == "__main__":
