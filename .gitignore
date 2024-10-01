@@ -6,3 +6,4 @@ assignment/*
 config.ini
 auto-compile-exec
 .vscode
+*.json
