@@ -1,101 +1,76 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import subprocess
 import argparse
-import sys
-import re
 import configparser
 import json
-from collections import defaultdict
-# 各種タイムアウト時間を設定
+from functools import reduce
+import subprocess
+import re
+import pprint
+import sys
 COMPILE_TIMEOUT = 4
 EXECUTION_TIMEOUT = 2
 
-
-class DualOutput:
+def get_student_list_from_config_ini(config_file : Path) -> list[str] | None:
     """
-    複数の出力ストリームに同時に書き込むためのユーティリティクラス。
-
-    このクラスは、指定された複数の出力ストリーム（例：ファイル、標準出力）に対して
-    同時にメッセージを書き込むための機能を提供します。
-
-    Attributes:
-    outputs (tuple): 書き込み先の出力ストリームのタプル。
-    """
-
-    def __init__(self, *outputs):
-        """
-        DualOutputクラスのコンストラクタ。
-
-        Parameters:
-        outputs (*): 書き込み先の出力ストリーム。可変長引数として指定します。
-        """
-        self.outputs = outputs
-
-    def write(self, message):
-        """
-        指定されたメッセージをすべての出力ストリームに書き込みます。
-
-        Parameters:
-        message (str): 書き込むメッセージ。
-        """
-        for output in self.outputs:
-            output.write(message)
-
-    def flush(self):
-        """
-        すべての出力ストリームをフラッシュします。
-
-        フラッシュは、バッファに溜まったデータを実際の出力先に書き出す操作です。
-        """
-        for output in self.outputs:
-            output.flush()
-
-
-def print_codeblock(code: str, language: str = None, file_name: str = None):
-    """
-    指定されたコードを適切なコードブロック形式で出力します。
+    config.iniファイルから学生のリストを取得します。
 
     Parameters:
-    code (str): 出力するコードの内容。
-    language (str, optional): コードの言語。デフォルトは None。
-    file_name (str, optional): コードが含まれるファイルの名前。デフォルトは None。
+        config_file (Path): config.iniファイルのパス。
+
+    Returns:
+        list[str] | None: 学生番号のリスト。取得できない場合はNone。
     """
-    strip_language = "" if language is None else language.strip()
-    strip_file_name = "" if file_name is None else f":{file_name}"
-    file_with_language = strip_language + strip_file_name
-    print(f"```{file_with_language}\n{code.strip()}\n```")
+    student_list = None
+    config_ini = configparser.ConfigParser()
+    try:
+        config_ini.read(config_file, encoding='utf-8')
+        student_list_str = config_ini.get("DEFAULT", "StudentList")
+        student_list = json.loads(student_list_str)    
+    except Exception as _:
+        student_list = None    
+    finally:
+        return student_list
+
+def is_eight_digit_number(s : str):
+    return s.isdigit() and len(s) == 8
 
 
-# コード出力の部分を変更したい場合この関数を変更
-def print_source(file_path: Path, display_command : str = "clang-format"):
-    """
-    指定されたファイルの内容をコードブロックとして出力します。clang-format を使用して整形します。
+def parse_student_number(student_number_str : str) -> list[str] | None:
+    student_list = student_number_str.split("|")
+    if reduce(lambda x, y: x and is_eight_digit_number(y), student_list, True):
+        return student_list
+    else:
+        return None
 
-    Parameters:
-    file_path (Path): ソースファイルのパス。
-    """
-    display_command_result: subprocess.CompletedProcess = subprocess.run(
-        [display_command, file_path], capture_output=True, text=True
+def convert_dict_from_target_dir(target_dir: Path):
+    source_files = target_dir.glob("*.c")
+    return {path.stem : path for path in source_files}
+
+def get_soruce(path : Path, command : str = "clang-format"):
+    result = subprocess.run(
+        [command, path],
+        capture_output=True, 
+        text=True
     )
-    print_codeblock(display_command_result.stdout, "c", file_path)
+    return f"//{str(path)}" + "\n" + result.stdout
 
-def print_runtime_error(error_code : int):
-    match error_code:
-        case -6:
-            print("* abort")
-            print("* abort()関数が呼ばれたとき。プログラムが異常終了する場合など")
-        case -7:
-            print("* Bus error")
-            print("* メモリアラインメントが不正です（例: 整数が奇数アドレスに置かれるなど）")
-        case -8:
-            print("* Floating point exception")
-            print("*  0での除算や不正な浮動小数点演算が行われました")
-        case -11:
-            print("* Segmentation fault")
-            print("* 無効なメモリアクセスが行われました(配列の範囲外アクセス、NULLポインタへのアクセス)")
-        case _:
-            print(f"* return_code = {error_code}")
+def include_source_compile(include_dir : Path | None) -> list[Path]:
+    if include_dir is None:
+        return []
+    compile_target_files = include_dir.glob("*.c")
+    compiled_files : list[Path] = []
+    for compile_target_file in compile_target_files:
+        compiled_file = compile_target_file.with_suffix("")
+        subprocess.run(
+            ["gcc", "-c", compile_target_file, "-o", compiled_file],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )       
+        compiled_files.append(compiled_file)
+    return compiled_files
+
 def pair_input_output(directory) -> list[tuple[Path, Path]]:
     """
     指定されたディレクトリ内の入力ファイルと対応する出力ファイルのペアを取得します。
@@ -134,151 +109,149 @@ def pair_input_output(directory) -> list[tuple[Path, Path]]:
 
     return pairs
 
-def compile_prepared_c_files(header_dir: Path) -> list[Path]:
+def get_runtime_error_info(error_code : int) -> str:
+    match error_code:
+        case -6:
+            return f"returncode={-6},abort"
+        case -7:
+            return f"returncode={-7},bus error"
+        case -8:
+            return f"returncode={-8},floating point exception"
+        case -11:
+            return f"returncode={-11},segmentation fault"
+        case _:
+            return f"returncode={error_code},segmentation fault"
+
+def run_program(
+    executable_path: Path,
+    execution_timeout: int,
+    nodiff: bool,
+    input_file: Path | None = None,
+    expected_file: Path | None = None
+) -> dict:
     """
-    事前に用意されたCファイルをコンパイルします。
+    コンパイルされたプログラムを実行し、実行結果を収集します。
 
     Parameters:
-        header_dir (Path): 事前に用意されたCファイルが含まれるディレクトリ。
+        executable_path (Path): 実行可能ファイルのパス。
+        execution_timeout (int): プログラムの実行タイムアウト時間（秒）。
+        nodiff (bool): 出力の差分チェックを行わない場合はTrue。
+        input_file (Path | None): 入力ファイルのパス（ない場合はNone）。
+        expected_file (Path | None): 期待される出力ファイルのパス（ない場合はNone）。
 
     Returns:
-        list[Path]: コンパイルされたファイルのパスのリスト。
-
-    Raises:
-        SystemExit: コンパイルに失敗した場合。
+        dict: 実行結果を含む辞書。
     """
-    if header_dir is None:
-        return []
-    
-    compile_target_files = list(header_dir.glob("*.c"))
-    compiled_files : list[Path] = []
-    for compile_target_file in compile_target_files:
-        compiled_file = compile_target_file.with_suffix("")
+    runtime_error = None
+    output = None
+    input_txt = None
+    expected_txt = None
+    diff = None
+
+    if input_file:
+        # 入力ファイルと期待される出力を読み込み
+        input_txt = input_file.read_text()
+        if expected_file:
+            expected_txt = expected_file.read_text()
+        # 一時的な出力ファイルを作成
+        output_file_path = executable_path.with_suffix(".txt")
+        with (
+            input_file.open("r") as infile,
+            output_file_path.open("w") as outfile
+        ):
+            try:
+                exe_result = subprocess.run(
+                    [executable_path],
+                    stdin=infile,
+                    stdout=outfile,
+                    text=True,
+                    timeout=execution_timeout,
+                )
+                exe_result.check_returncode()
+            except subprocess.CalledProcessError:
+                runtime_error = get_runtime_error_info(exe_result.returncode)
+            except subprocess.TimeoutExpired:
+                runtime_error = "timeout"
+            else:
+                if not nodiff and expected_file:
+                    diff_result = subprocess.run(
+                        ["diff", "-wB", expected_file, output_file_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    if diff_result.returncode != 0:
+                        diff = diff_result.stdout
+            # 出力ファイルから出力を読み込み
+            output = output_file_path.read_text()
+            # 一時ファイルを削除
+            output_file_path.unlink()
+    else:
         try:
-            compile_result = subprocess.run(
-                ["gcc", "-c", compile_target_file, "-o", compiled_file],
+            exe_result = subprocess.run(
+                [executable_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                timeout=execution_timeout,
             )
-            compile_result.check_returncode()
-        except Exception as e:
-            print("# 事前に用意したファイルのエラー")
-            print(f"* `{' '.join(map(str, compile_result.args))}`")
-            print_codeblock(compile_result.stderr, "bash")
-            for compiled in compiled_files:
-                compiled.unlink()
-            exit(1)
-        compiled_files.append(compiled_file)
-    return compiled_files
+            exe_result.check_returncode()
+            output = exe_result.stdout
+        except subprocess.CalledProcessError:
+            runtime_error = get_runtime_error_info(exe_result.returncode)
+        except subprocess.TimeoutExpired:
+            runtime_error = "timeout"
 
-def get_student_list(config_file : Path) -> list[str] | None:
-    """
-    config.iniファイルから学生のリストを取得します。
+    # 実行結果の辞書を作成
+    execution_result_dict = {
+        "in" : input_txt,
+        "out": output,
+        "expected" : expected_txt,
+        "diff" : diff,
+        "runtime_error": runtime_error,
+    }
+    return execution_result_dict
 
-    Parameters:
-        config_file (Path): config.iniファイルのパス。
-
-    Returns:
-        list[str] | None: 学生番号のリスト。取得できない場合はNone。
-    """
-    student_list = None
-    config_ini = configparser.ConfigParser()
-    try:
-        config_ini.read(config_file, encoding='utf-8')
-        try:
-            student_list_str = config_ini.get("DEFAULT", "StudentList")
-            student_list = json.loads(student_list_str)
-        except configparser.NoOptionError as no_option_error:
-            if config_file.exists():
-                print(f"* {str(config_file)} は存在していますが `config_ini.get(\"DEFAULT\", \"StudentList\")`の値がありません")
-    except configparser.ParsingError as parsing_error:
-        print("* config.ini をパースできません")
-        print_codeblock(str(parsing_error), "bash")
-    return student_list
-
-def get_c_files_dict(directories: list[Path]) -> dict[str, list[Path]]:
-    c_files : list[Path]= []
-    for directory in directories:
-        # ディレクトリ内のすべての .c ファイルを取得
-        c_files.extend(directory.glob('*.c'))
-        
-    c_file_dict : dict[str, list[Path]]= defaultdict(list)
-    for c_file in c_files:
-        c_file_dict[c_file.stem].append(c_file)
-    return c_file_dict
 
 def auto_compile_exec(
     target_dir_list: list[Path],
     compile_timeout: int,
     execution_timeout: int,
-    intput_output_dir: Path | None = None,
-    header_dir: Path | None = None,
+    intput_output_dir: Path | None,
+    include_dir: Path | None,
+    nodiff: bool,
+    student_list: list[str] | None,
+    uninitialized_errpr : bool,
 ):
-    """
-    指定されたディレクトリ内のCファイルをコンパイルし、結果を実行します。
+    target_dir_dict_list = list(map(convert_dict_from_target_dir, target_dir_list))
+    target_dir_dict = target_dir_dict_list.pop(0)
+    compiled_files = include_source_compile(include_dir)
+    intput_output_pair_list: list[tuple[Path, Path]] | None = pair_input_output(intput_output_dir) if intput_output_dir else None
 
-    コンパイルエラーやタイムアウトが発生した場合、その詳細を出力します。
-    実行後、指定された入力と期待される出力を比較し、差分を表示します。
-
-    Parameters:
-        target_dir (Path): Cファイルが含まれるディレクトリのパス。
-        compile_timeout (int): コンパイルのタイムアウト時間（秒）。
-        execution_timeout (int): 実行のタイムアウト時間（秒）。
-        intput_output_dir (Path, optional): 入力ファイルと出力ファイルが含まれるディレクトリのパス。デフォルトは None。
-        header_dir (Path, optional): ヘッダファイルが含まれるディレクトリのパス。デフォルトは None。
-    """
-    # TAが用意するソースコードを事前コンパイル
-    c_compiled_files = compile_prepared_c_files(header_dir)
-    # congig.ini があればそれを確認
-    student_list = get_student_list(Path('config.ini'))
-    
-    target_dir : Path = target_dir_list.pop(0)
-    c_files : list[Path] = list(target_dir.rglob("*.c"))
-    if student_list is None:
-        target_file_list = sorted(c_files)
-    else:
-        student_set = {student_number for student_number in map(str, student_list)}
-        print(f"* `{student_set=}`")
-        target_file_list = sorted(list(filter(lambda file : file.stem in student_set, c_files)))
-        
-    c_file_dict = get_c_files_dict(target_dir_list)
-    for file in target_file_list:
-        print(f"## {file.name}")
-        print("### source file")
-        print(f"* {str(file)}")
-        #提出されたソースコードを表示
-        try:
-            print_source(file)
-        except FileNotFoundError:
-            # clang-formater が見つからない場合 cat を使用
-            print_source(file, "cat")
-
-        for another_file in c_file_dict.get(file.stem, []):
-            #提出されたソースコードを表示
-            print(f"* {str(another_file)}")
-            try:
-                print_source(another_file)
-            except FileNotFoundError:
-                # clang-formater が見つからない場合 cat を使用
-                print_source(another_file, "cat")            
+    output_json = {}
+    for student_number in sorted(target_dir_dict):
+        data = dict()
+        path = target_dir_dict[student_number]
+        other_paths = list(map(lambda dct: dct.get(student_number, None), target_dir_dict_list))
+        path_list: list[Path] = [path, *other_paths]
+        source_list: list[str] = [get_soruce(source_path) for source_path in path_list]
+        filepath_after_compile = path.with_suffix("")
+        compile_command = [
+            "gcc",
+            "-o",
+            filepath_after_compile,
+            *path_list,
+            "-lm",
+        ]
+        if uninitialized_errpr:
+            compile_command.extend(["-Wall", "-Wuninitialized", "-Werror"])
             
-        filepath_after_compile = file.with_suffix("")
-        if header_dir is None:
-            compile_command = ["gcc", file, "-o", filepath_after_compile, "-lm"]
-        else:                
-            compile_command = [
-                "gcc",
-                "-I",
-                header_dir,
-                "-o",
-                filepath_after_compile,
-                file,
-                *c_file_dict.get(file.stem, []),
-                *c_compiled_files,
-                "-lm"
-            ]
-
+        if include_dir:
+            compile_command.extend(["-I", include_dir])
+            compile_command.extend(compiled_files)
+        execution_result_list = []
+        compile_error = None
+        data["source"] = source_list
         try:
             compile_result = subprocess.run(
                 compile_command,
@@ -289,146 +262,110 @@ def auto_compile_exec(
             )
             compile_result.check_returncode()
         except subprocess.CalledProcessError:
-            print("### compile error")
-            print_codeblock(compile_result.stderr, "bash")
-            continue
+            compile_error = compile_result.stderr
         except subprocess.TimeoutExpired:
-            print("### compile timeout")
-            print(f"コンパイルが{compile_timeout}秒を超えたため強制終了しました")
-            continue
-
-        print("### 実行結果")
-        if intput_output_dir:
-            intput_output_pair_list = pair_input_output(intput_output_dir)
-            for input_file, expected_file in intput_output_pair_list:
-                print(f"#### 入力-{input_file.name}")
-                print_codeblock(input_file.read_text(), "txt", input_file)
-                output_file_path = filepath_after_compile.with_suffix(".txt")
-                with (
-                    input_file.open("r") as infile,
-                    output_file_path.open("w") as outfile
-                ):
-                    try:
-                        exe_result = subprocess.run(
-                            [filepath_after_compile],
-                            stdin=infile,
-                            stdout=outfile,
-                            text=True,
-                            timeout=execution_timeout,
-                        )
-                        exe_result.check_returncode()
-                    except subprocess.CalledProcessError:
-                        print("#### Runtime error")
-                        print_runtime_error(exe_result.returncode)
-                    except subprocess.TimeoutExpired:
-                        print(
-                            f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました"
-                        )
-                        break
-                    else:
-                        print("##### 出力")
-                        print_codeblock(output_file_path.read_text())
-                        print("##### diff")
-                        diff_result = subprocess.run(
-                            ["diff", "-wB", expected_file, output_file_path],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                        )
-
-                        if diff_result.returncode == 0:
-                            print("* ok")
-                        else:
-                            print("* NG")
-                            print_codeblock(diff_result.stdout)
-                    finally:
-                        output_file_path.unlink()
-            filepath_after_compile.unlink()
+            compile_error = "timeout"
         else:
-            # 入力ファイルが無い場合
-            try:
-                exe_result = subprocess.run(
-                    [filepath_after_compile],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=execution_timeout,
+            if intput_output_pair_list:
+                for input_file, expected_file in intput_output_pair_list:
+                    execution_result_dict = run_program(
+                        executable_path=filepath_after_compile,
+                        execution_timeout=execution_timeout,
+                        nodiff=nodiff,
+                        input_file=input_file,
+                        expected_file=expected_file,
+                    )
+                    execution_result_list.append(execution_result_dict)
+            else:
+                execution_result_dict = run_program(
+                    executable_path=filepath_after_compile,
+                    execution_timeout=execution_timeout,
+                    nodiff=nodiff,
                 )
-                exe_result.check_returncode()
-                print("#### 出力")
-                print_codeblock(exe_result.stdout ,"txt")
-            except subprocess.CalledProcessError:
-                print("#### Runtime error")
-                print_runtime_error(exe_result.returncode)
-                continue                                
-            except subprocess.TimeoutExpired:
-                print(f"* 実行時間が{execution_timeout}秒を超えたため強制終了しました")
-                continue
-            finally:
-                filepath_after_compile.unlink()
-    for compiled_file in c_compiled_files:
+                execution_result_list.append(execution_result_dict)
+        data["compile_error"] = compile_error
+        data["execution"] = execution_result_list
+        output_json[student_number] = data
+        pprinter = pprint.PrettyPrinter(stream=sys.stderr)
+        pprinter.pprint(data)
+        if filepath_after_compile.exists() and filepath_after_compile.is_file():
+            filepath_after_compile.unlink()
+    for compiled_file in compiled_files:
         compiled_file.unlink()
-        
-
+    
+    return json.dumps(output_json, indent=4)
+    
 def main():
     parser = argparse.ArgumentParser(
-        description="This script will compile all the source code in the folder."
+        description="学生のプログラムを自動でコンパイルし、テストを実行するスクリプトです。指定したディレクトリ内のCソースコードをコンパイルし、必要に応じて入出力ファイルを用いた実行を行い、結果を収集します。"
     )
     parser.add_argument(
-        "target_dir", help="The path to the folder containing the source code.",
+        "target_dir",
+        help="ソースコードが含まれるディレクトリのパスを1つ以上指定してください。",
         nargs="+"
     )
     parser.add_argument(
         "-io",
         "--input_output",
-        help="Path to the directory containing input and expected output text files.",
+        help="入出力テストデータ（入力ファイルと期待される出力ファイル）が含まれるディレクトリのパス。",
+        type=Path,
+        default=None,
+    )
+    parser.add_argument(
+        "-I",
+        "--include",
+        help="事前に準備されたCファイルを含むディレクトリのパス。",
         type=Path,
         default=None,
     )
 
     parser.add_argument(
-        "-H",
-        "--header",
-        help="A directory containing pre-prepared c files",
-        type=Path,
-        default=None,
+        "-sn",
+        "--student_number",
+        help="学生番号をパイプ(|)区切りで指定します。指定しない場合はconfig.iniから読み取ります。",
+        type=str,
+        default=None
     )
-
     parser.add_argument(
-        "--nooutput",
+        "--nodiff",
+        help="出力の差分チェックをスキップする場合に使用します。",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--output_markdown",
+        help="コンパイル結果をテキストファイルに出力しない場合に使用します。",
         action="store_true",
-        help="Do not output compilation results to a text file.",
+    )
+    parser.add_argument(
+        "--uninitialized_error",
+        help="未初期化変数に関するエラーを強制するためのオプションです。",
+        action="store_true",
     )
 
     args = parser.parse_args()
-    
     target_dir_list = list(map(lambda fila_path : Path(fila_path), args.target_dir))
     input_output_dir = Path(args.input_output) if args.input_output else None
-    header_dir = Path(args.header) if args.header else None
-
-    if args.nooutput:
-        auto_compile_exec(
-            target_dir_list, COMPILE_TIMEOUT, EXECUTION_TIMEOUT, input_output_dir, header_dir
-        )
+    include_dir = Path(args.include) if args.include else None
+    if args.student_number is None:
+        student_list = get_student_list_from_config_ini(Path("config.ini"))
     else:
-        dir_name = target_dir_list[0].resolve().name
-        output_file = Path.cwd() / f"{dir_name}_out.md"
-        with output_file.open("w") as outfile:
-            dual_output = DualOutput(sys.stdout, outfile)
-            sys.stdout = dual_output
-            sys.stderr = dual_output
-            try:
-                auto_compile_exec(
-                    target_dir_list,
-                    COMPILE_TIMEOUT,
-                    EXECUTION_TIMEOUT,
-                    input_output_dir,
-                    header_dir,
-                )
-            finally:
-                sys.stdout = sys.__stdout__
-                sys.stderr = sys.__stderr__
-
+        student_list = parse_student_number(args.student_number) 
+    json_str = auto_compile_exec(
+        target_dir_list=target_dir_list,
+        compile_timeout=COMPILE_TIMEOUT,
+        execution_timeout=EXECUTION_TIMEOUT,
+        intput_output_dir=input_output_dir,
+        include_dir=include_dir,
+        nodiff=args.nodiff,
+        student_list=student_list,
+        uninitialized_errpr=args.uninitialized_error
+    )
+    
+    if args.output_markdown:
+        from convert_md import convert_md
+        convert_md(json_str)
+    else:
+        print(json_str)
 
 if __name__ == "__main__":
     main()
