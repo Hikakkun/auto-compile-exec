@@ -83,11 +83,11 @@ def main():
     - 読み込んだデータは `convert_md` 関数を使用してMarkdown形式に変換されます。
     """
     parser = argparse.ArgumentParser(
-        description="This script reads a JSON file containing student data and outputs it in Markdown format."
+        description="このスクリプトは学生データを含むJSONファイルを読み込み、それをMarkdown形式で出力します。"
     )
     parser.add_argument(
         "json_path",
-        help="Path to the JSON file containing student information. If not specified, the script will read JSON data from standard input.",
+        help="学生情報が含まれているJSONファイルのパス。指定しない場合、標準入力からJSONデータを読み込みます。",
         default=None,
         nargs="?",
     )
