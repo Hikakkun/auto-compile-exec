@@ -114,10 +114,15 @@ StudentList = ["00001111", "00001112"]
     * `./auto-compile-exec.py ./example/header-submit-func/code -io ./example/header-submit-func/inout/ -I ./example/header-submit-func/header/`
 1. 提出が複数あるタイプで入出力でdiffを取る
     * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/ -I ./example/submit-double/header/ -io ./example/submit-double/inout/`
-2. 結果をjsonではなくMarkdownで出力
+1. 結果をjsonではなくMarkdownで出力
     * `./auto-compile-exec.py ./example/noinput-noheader/code --output_markdown`
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --output_markdown`
-
+1. 未初期化の変数がある場合コンパイル時にエラー発生
+    * `./auto-compile-exec.py ./example/noinput-noheader/code --uninitialized_error`
+    * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --uninitialized_error`
+1. diffを取らない
+    * `./auto-compile-exec.py ./example/noinput-noheader/code --nodiff `
+    * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --nodiff `
 ## カスタマイズ
 ### タイムアウト
 * 以下の変数の値を変更することで各タイムアウトの時間を変更可能
