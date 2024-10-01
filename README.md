@@ -10,48 +10,7 @@
     * [jq コマンド マニュアル](https://jqlang.github.io/jq/manual/)
     * [jq コマンドを使う日常のご紹介(Qiita)](https://qiita.com/takeshinoda@github/items/2dec7a72930ec1f658af)
         * コマンドラインでjsonを整形 集計できる
-* 提出されたプログラムは以下の通り
-```json
-{
-    "programs" : {
-        "student_numberA" : {
-            "sources" : [
-                "cのコード",
-                "cのコード"
-            ],  
-            "compile_error":null,
-            "execution" : [
-                {
-                    "in" : "",
-                    "out" : "",
-                    "expected" : null or string,
-                    "diff" : null or string ,
-                    "runtime_error" : null or srting
-                }
-            ]          
-        },
-        "student_numberB" : {
-            "sources" : [
-                "cのコード",
-                "cのコード"
-            ],  
-            "compile_error":null,
-            "execution" : [
-                {
-                    "in" : "",
-                    "out" : "",
-                    "expected" : null or string,
-                    "diff" : null or string ,
-                    "runtime_error" : null or srting
-                }
-            ]          
-        },
-    }
-}
-```
-```json
 
-```
 ## 環境構築
 * python 3.10 以上
     * [typing.Optional(型ヒント)](https://docs.python.org/ja/3/library/typing.html#typing.Optional), [with文のネスト](https://docs.python.org/ja/3/reference/compound_stmts.html#the-with-statement) を利用しているため
@@ -98,6 +57,7 @@ options:
 [DEFAULT]
 StudentList = ["00001111", "00001112"]
 ```
+
 ### 使用例
 * repository内のexampleで動作確認可能
     * git clone していればrepository rootで以下を実行可能
@@ -114,15 +74,132 @@ StudentList = ["00001111", "00001112"]
     * `./auto-compile-exec.py ./example/header-submit-func/code -io ./example/header-submit-func/inout/ -I ./example/header-submit-func/header/`
 1. 提出が複数あるタイプで入出力でdiffを取る
     * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/ -I ./example/submit-double/header/ -io ./example/submit-double/inout/`
-1. 結果をjsonではなくMarkdownで出力
+2. 結果をJSONではなくMarkdownで出力
     * `./auto-compile-exec.py ./example/noinput-noheader/code --output_markdown`
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --output_markdown`
-1. 未初期化の変数がある場合コンパイル時にエラー発生
+3. 未初期化の変数がある場合コンパイル時にエラー発生
     * `./auto-compile-exec.py ./example/noinput-noheader/code --uninitialized_error`
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --uninitialized_error`
-1. diffを取らない
+4. diffを取らない
     * `./auto-compile-exec.py ./example/noinput-noheader/code --nodiff `
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --nodiff `
+
+### 出力JSON
+* JSON Schema
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "patternProperties": {
+    "^[0-9]+$": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "ソースコードの文字列の配列"
+        },
+        "compile_error": {
+          "type": ["string", "null"],
+          "description": "コンパイルエラーのメッセージ。エラーがない場合はnull"
+        },
+        "execution": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "in": {
+                "type": ["string", "null"],
+                "description": "入力データ。入力データがない場合はnull"
+              },
+              "out": {
+                "type": ["string", "null"],
+                "description": "プログラムの出力。出力がない場合はnull"
+              },
+              "expected": {
+                "type": ["string", "null"],
+                "description": "期待される出力。期待出力がない場合はnull"
+              },
+              "diff": {
+                "type": ["string", "null"],
+                "description": "出力と期待される出力の差分。差異がない場合はnull"
+              },
+              "runtime_error": {
+                "type": ["string", "null"],
+                "description": "実行時エラーの情報。エラーがない場合はnull"
+              }
+            },
+            "required": ["in", "out", "expected", "diff", "runtime_error"],
+            "additionalProperties": false,
+            "description": "各テストケースの実行結果"
+          },
+          "description": "実行結果のオブジェクトの配列"
+        }
+      },
+      "required": ["source", "compile_error", "execution"],
+      "additionalProperties": false,
+      "description": "各学生のデータを格納するオブジェクト"
+    }
+  },
+  "additionalProperties": false,
+  "description": "学生番号をキーとした全体のデータ構造"
+}
+```
+* 具体例
+```json
+{
+  "0000001": {
+    "source": [
+      "//example/submit-double/main/0000001.c\n#include \"operator.h\"\n..."
+    ],
+    "compile_error": null,
+    "execution": [
+      {
+        "in": "3 1",
+        "out": "4\n2\n3\n3\n-2\n",
+        "expected": "4\n2\n3\n3\n-2",
+        "diff": null,
+        "runtime_error": null
+      },
+      {
+        "in": "4 5",
+        "out": "9\n-1\n20\n0\n1\n",
+        "expected": "9\n-1\n20\n0\n1",
+        "diff": null,
+        "runtime_error": null
+      }
+    ]
+  }
+}
+```
+
+### 出力JSONフィルタリング
+* コマンドラインでJSONを集計, フィルタリングできるツール
+  * [jq コマンド](https://jqlang.github.io/jq/)
+  * [jq コマンド マニュアル](https://jqlang.github.io/jq/manual/)
+  * [jq コマンドを使う日常のご紹介(Qiita)](https://qiita.com/takeshinoda@github/items/2dec7a72930ec1f658af)
+* `./auto-compile-exec.py` を用いて出力されたJSONを`out.json`とする
+```bash
+# コンパイルエラーが発生 or diffが違う or 実行時エラーが発生 の生徒のフィルタリング
+jq 'to_entries | map(select(.value.compile_error != null or (.value.execution | any(.diff != null or .runtime_error != null)))) | map({(.key): .value}) | add' out.json
+# コンパイルエラーが発生した生徒をフィルタリング
+jq 'to_entries | map(select(.value.compile_error != null)) | map({(.key): .value}) | add' out.json
+# diffが違う生徒をフィルタリング
+jq 'to_entries | map(select(.value.execution | any(.diff != null))) | map({(.key): .value}) | add'
+# 実行時エラーが発生した生徒をフィルタリング
+jq 'to_entries | map(select(.value.execution | any(.runtime_error != null))) | map({(.key): .value}) | add'
+# 問題のない生徒をフィルタリング
+jq 'to_entries | map(select(.value.compile_error == null and (.value.execution | all(.diff == null and .runtime_err or == null)))) | map({(.key): .value}) | add' out.json 
+```
+* パイプ `|` でつないで実行
+```bash 
+# example/submit-double 内をコンパイルして実行
+# jqで問題のある生徒をフィルタリング
+# markdownに変換
+./auto-compile-exec.py example/submit-double/main example/submit-double/add example/submit-double/sub -I example/submit-double/header/ -io example/submit-double/inout/ | jq 'to_entries | map(select(.value.compile_error != null or (.value.execution | any(.diff != null or .runtime_error != null)))) | map({(.key): .value}) | add' | ./convert_md.py > error.md
+```
 ## カスタマイズ
 ### タイムアウト
 * 以下の変数の値を変更することで各タイムアウトの時間を変更可能
