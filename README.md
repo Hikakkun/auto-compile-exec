@@ -1,7 +1,7 @@
 # auto-compile-exec
 
 ## 概要
-このスクリプトは、指定されたディレクトリ内のCソースファイルを自動的にコンパイルし、実行結果を出力するためのツールです。スクリプトは、コンパイルおよび実行のタイムアウトを設定でき、結果をMarkdown形式で保存することができます。
+このスクリプトは、指定されたディレクトリ内のCソースファイルを自動的にコンパイルし、実行結果を出力するためのツールです。スクリプトは、コンパイルおよび実行のタイムアウトを設定でき、結果をjsonもしくはMarkdown形式で保存することができます。
 
 ## 改修案(2024/09/30)
 * diffのOK/NGで再提出を決めるならjsonなどの構造化データでまとめたほうがいい気がする
@@ -69,15 +69,29 @@
 
 ## 使用方法
 * 以下のコマンドを実行してスクリプトを使用します：
+
 ```sh
-python auto-compile-exec.py <target_dir> [-io or --input_output]  input_output_dir [-H or --header] header_dir [--nooutput]
+> python auto-compile-exec.py -h
+usage: ace.py [-h] [-io INPUT_OUTPUT] [-I INCLUDE] [-sn STUDENT_NUMBER] [--nodiff] [--output_markdown] [--uninitialized_error] target_dir [target_dir ...]
+
+学生のプログラムを自動でコンパイルし、テストを実行するスクリプトです。指定したディレクトリ内のCソースコードをコンパイルし、必要に応じて入出力ファイルを用いた実行を行い、結果を収集します。
+
+positional arguments:
+  target_dir            ソースコードが含まれるディレクトリのパスを1つ以上指定してください。
+
+options:
+  -h, --help            show this help message and exit
+  -io INPUT_OUTPUT, --input_output INPUT_OUTPUT
+                        入出力テストデータ（入力ファイルと期待される出力ファイル）が含まれるディレクトリのパス。
+  -I INCLUDE, --include INCLUDE
+                        事前に準備されたCファイルを含むディレクトリのパス。
+  -sn STUDENT_NUMBER, --student_number STUDENT_NUMBER
+                        学生番号をパイプ(|)区切りで指定します。指定しない場合はconfig.iniから読み取ります。
+  --nodiff              出力の差分チェックをスキップする場合に使用します。
+  --output_markdown     コンパイル結果をテキストファイルに出力しない場合に使用します。
+  --uninitialized_error
+                        未初期化変数に関するエラーを強制するためのオプションです。
 ```
-* 引数
-    * target_dir：Cソースファイルが含まれるディレクトリのパス。複数ディレクトリ指定可能
-    * input_output_dir：オプション。入力ファイルと出力期待値ファイルが格納されているディレクトリ
-        * in\d.txt out\d.txt のみを受付それぞれ一組とする
-    * header_dir : オプション TA側が用意する.cと.hが格納されているディレクトリ
-    * --nooutput：オプション。コンパイル結果をテキストファイルに出力せずにコンソールにのみ出力
 * config.ini が存在し DEFAULT StudentList に配列形式で学籍番号を記入している場合その学生のみがコンパイルのターゲットとなる
     * config.ini が存在しない or  config.ini の書き方が間違えている場合はtarget_dir すべてがコンパイルの対象になる 
 ```ini:config.ini
@@ -94,15 +108,15 @@ StudentList = ["00001111", "00001112"]
     * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/`
 1. 分割コンパイルを行いなおかつ入出力でdiffを取る
     * 学生が提出しているのはmian関数が含まれているパターン
-    * `./auto-compile-exec.py ./example/header-submit-main/code -io ./example/header-submit-main/inout/ -H ./example/header-submit-main/header/`
+    * `./auto-compile-exec.py ./example/header-submit-main/code -io ./example/header-submit-main/inout/ -I ./example/header-submit-main/header/`
 1. 分割コンパイルを行いなおかつ入出力でdiffを取る
     * 学生が提出しているのは関数の実装
-    * `./auto-compile-exec.py ./example/header-submit-func/code -io ./example/header-submit-func/inout/ -H ./example/header-submit-func/header/`
+    * `./auto-compile-exec.py ./example/header-submit-func/code -io ./example/header-submit-func/inout/ -I ./example/header-submit-func/header/`
 1. 提出が複数あるタイプで入出力でdiffを取る
-    * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/ -H ./example/submit-double/header/ -io ./example/submit-double/inout/`
-1. 結果をMarkdownに出力せずにコンパイルおよび実行
-    * `./auto-compile-exec.py ./example/noinput-noheader/code --nooutput`
-    * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --nooutput`
+    * `./auto-compile-exec.py ./example/submit-double/main ./example/submit-double/add ./example/submit-double/sub/ -I ./example/submit-double/header/ -io ./example/submit-double/inout/`
+2. 結果をjsonではなくMarkdownで出力
+    * `./auto-compile-exec.py ./example/noinput-noheader/code --output_markdown`
+    * `./auto-compile-exec.py ./example/input-noheader/code -io ./example/input-noheader/inout/ --output_markdown`
 
 ## カスタマイズ
 ### タイムアウト
