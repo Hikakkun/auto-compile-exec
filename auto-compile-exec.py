@@ -227,10 +227,10 @@ def auto_compile_exec(
     target_dir_dict = target_dir_dict_list.pop(0)
     compiled_files = include_source_compile(include_dir)
     intput_output_pair_list: list[tuple[Path, Path]] | None = pair_input_output(intput_output_dir) if intput_output_dir else None
-    student_number_set : set[str] = set(map(str, student_list))
+    student_number_set : set[str] | None = None if student_list is None else set(map(str, student_list))
     output_json = {}
     for student_number in sorted(target_dir_dict):
-        if student_number not in student_number_set:
+        if student_number_set is not None and student_number not in student_number_set:
             continue
         data = dict()
         path = target_dir_dict[student_number]
