@@ -7,3 +7,5 @@ config.ini
 auto-compile-exec
 .vscode
 *.json
+.venv
+__pycache__
