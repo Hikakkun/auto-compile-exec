@@ -44,7 +44,7 @@ def parse_student_number(student_number_str : str) -> list[str] | None:
         return None
 
 def convert_dict_from_target_dir(target_dir: Path):
-    source_files = target_dir.glob("*.c")
+    source_files = target_dir.glob("*.cpp")
     return {path.stem : path for path in source_files}
 
 def get_soruce(path : Path, command : str = "clang-format"):
@@ -63,7 +63,7 @@ def include_source_compile(include_dir : Path | None) -> list[Path]:
     for compile_target_file in compile_target_files:
         compiled_file = compile_target_file.with_suffix("")
         subprocess.run(
-            ["gcc", "-c", compile_target_file, "-o", compiled_file],
+            ["g++", "-c", compile_target_file, "-o", compiled_file],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -239,11 +239,12 @@ def auto_compile_exec(
         source_list: list[str] = [get_soruce(source_path) for source_path in path_list]
         filepath_after_compile = path.with_suffix("")
         compile_command = [
-            "gcc",
+            "g++",
             "-o",
             filepath_after_compile,
             *path_list,
             "-lm",
+            "-std=c++11"
         ]
         if uninitialized_errpr:
             compile_command.extend(["-Wall", "-Wuninitialized", "-Werror"])
